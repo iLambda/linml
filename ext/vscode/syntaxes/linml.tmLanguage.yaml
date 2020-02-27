@@ -1,0 +1,35 @@
+$schema: 'https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json'
+name: LinML
+scopeName: source.linml
+fileTypes:
+  - ".ll"
+  - ".lli"
+patterns:
+  - include: '#comment'
+  - include: '#terms'
+repository:
+  # comments 
+  comment:
+    begin: "\\(\\*(?!\\*[^\\)])"
+    end: "\\*\\)"
+    name: 'comment.block.linml'
+    patterns:
+      - include: '#comment'
+  # terms
+  terms:
+    patterns:
+      - name: 'constant.language'
+        match: '\b([[:upper:]])[:alpha:]+\b'
+
+      - name: 'keyword.control.linml'
+        match: '\b(give|in|fun|match|with|return|end)\b'
+        
+  strings:
+    name: string.quoted.double.linml
+    begin: '"'
+    end: '"'
+    patterns:
+      - name: constant.character.escape.linml
+        match: \\.
+
+

@@ -1,0 +1,15 @@
+(include_subdirs no)
+(rule
+ (targets lexer.ml)
+ (deps    linml.mll)
+ (action  (run ocamllex -o %{targets} %{deps})))
+
+(menhir
+  (flags (--explain))
+  (merge_into parser)
+   (modules linml))
+
+(library
+  (name parsing)
+  (preprocess (pps ppx_deriving.show ppx_deriving.map))
+  (libraries utils lang))

@@ -1,0 +1,7 @@
+(include_subdirs no)
+(rule
+ (targets identifierChop.ml)
+ (deps    identifier.mll)
+ (action  (run ocamllex -o %{targets} %{deps})))
+(library
+  (name utils))

@@ -1,0 +1,5 @@
+(include_subdirs no)
+(library
+  (name typechecking)
+  (preprocess (pps ppx_deriving.show ppx_deriving.map ppx_deriving.ord))
+  (libraries utils lang))

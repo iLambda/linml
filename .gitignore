@@ -1,0 +1,16 @@
+_build
+*.old
+build
+bin
+*.cmi
+*.cmx
+*.o
+*.cmt
+.merlin
+*.aux
+*.fdb*
+*.fls
+*.log
+*.synctex*
+todo
+test/

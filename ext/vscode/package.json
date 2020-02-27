@@ -1,0 +1,25 @@
+{
+    "name": "vscode-linml",
+    "displayName": "vscode-linml",
+    "description": "LinML language support for Visual Studio Code",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.42.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "linml",
+            "aliases": ["LinML", "linml"],
+            "extensions": [".ll .lli"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "linml",
+            "scopeName": "source.linml",
+            "path": "./syntaxes/linml.tmLanguage.json"
+        }]
+    }
+}
