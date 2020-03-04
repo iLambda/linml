@@ -50,7 +50,7 @@ The types in LinML have the following syntax :
                 \alt $\tau * \sigma$ \hfill (multiplicative conjunction)
                 \alt $\tau \with \sigma$ \hfill (multiplicative disjunction)
                 % bang 
-                \alt $\tau \oc$ \hfill (of course)
+                \alt $\oc\tau$ \hfill (of course)
         \end{grammar}
     \end{minipage}
     \caption{LinML types}
@@ -71,25 +71,30 @@ $$
 \right.
 $$
 
-In all the following, typing contexts $\Gamma ; \Delta$ are to be seen as a pair with :
+In all the following, typing contexts $\Gamma \Vert \Delta$ are to be seen as a pair with :
 \begin{itemize}
-    \item $\Gamma$ a multiset of pairs $(x : \tau)$, with $x$ a variable and $\tau$ a type such that $\operatorname{exp}(\tau) = \mathrm{false}$
+    \item $\Gamma$, called a \textit{linear context}, is a multiset of pairs $(x : \tau)$, with $x$ a variable and $\tau$ a type such that $\operatorname{exp}(\tau) = \mathrm{false}$
     
-    \item $\Delta$ a set of pairs $(x : \tau)$, with $x$ a variable and $\tau$ a type such that $\operatorname{exp}(\tau) = \mathrm{true}$    
+    \item $\Delta$, called an \textit{exponential context}, is a set of pairs $(x : \tau)$, with $x$ a variable and $\tau$ a type such that $\operatorname{exp}(\tau) = \mathrm{true}$    
 \end{itemize}
 
-Intuitively, $\Gamma$ contains the linear bindings, and $\Delta$ contains the exponential bindings.\vspace{\baselineskip}
-
-Since $\forall \tau, \operatorname{exp}(\tau) = true$ implies the existence of context weakening and contraction rules for $\tau$, we treat the context $\Delta$ as the kind of contexts we manipulate in intuitionistic sequent calculus, that is : they can be duplicated, erased, and one binding is allowed to erase another. This is not the case of the context $\Gamma$ containing linear bindings.
+Since $\operatorname{exp}(\tau)$ implies the existence of context weakening and contraction rules for $\tau$, we treat the context $\Delta$ as the kind of contexts we manipulate in intuitionistic sequent calculus, that is : they can be duplicated, erased, and one binding is allowed to erase another. This is not the case of the context $\Gamma$ containing linear bindings.
 
 \subsubsection{Terms}
 
-Let $t, u$ be terms, $\tau, \sigma$ types, and $(\Gamma; \Delta), (\Gamma'; \Delta')$ typing contexts. The typing judgements for terms have the following shape :
+Let $t, u$ be terms, $\beta, \beta'$ booleans, $\tau, \sigma$ types, and $(\Gamma \parallel \Delta), (\Gamma' \parallel \Delta')$ typing contexts. The typing judgements for terms have the following shape :
 $$
-\Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma'; \Delta'
+\Gamma \parallel \Delta \vdash t : \tau \Rightarrow \Gamma' \rtimes \beta
 $$
 
-$\Gamma'; \Delta'$ is the typing context after consuming the necessary bindings to type $t : \tau$. \vspace{\baselineskip}
+$\Gamma'$ is the linear context where all the necessary bindings to type $t : \tau$ have been consumed. 
+
+$\beta \in \{\top, \bot\}$ is the called the "modality of the judgement". \vspace{\baselineskip}
+
+A program $p$ is well typed of type $\tau$ iff : 
+$$
+\varnothing \parallel \varnothing \vdash p : \tau \Rightarrow \varnothing \rtimes \beta
+$$
 
 The typing rules are the following:
 
@@ -99,43 +104,43 @@ The typing rules are the following:
     % constants
     \begin{tabular}{ll}
         % rule for one 
-        \prftree[rule]{\scriptsize ($1$)} { \Gamma; \Delta \vdash * : 1 \Rightarrow \Gamma; \Delta } &
+        \prftree[rule]{\scriptsize ($1$)} { \Gamma \parallel \Delta \vdash * : 1 \Rightarrow \Gamma \rtimes \bot } &
         % rule for top
-        \prftree[rule]{\scriptsize ($\top$)} { \Gamma; \Delta \vdash \langle \rangle : \top \Rightarrow \Gamma; \Delta }
+        \prftree[rule]{\scriptsize ($\top$)} { \Gamma \parallel \Delta \vdash \langle \rangle : \top \Rightarrow \Gamma \rtimes \top }
     \end{tabular} \\[\baselineskip]
     % variable 
     \begin{tabular}{ll}
         % variable
         \prftree[rule]{\scriptsize (vlin)} 
             {  (x : \tau) \in \Gamma }
-            { \quad \operatorname{exp}(\tau) }
-            { \Gamma; \Delta \vdash x : \tau \Rightarrow (\Gamma \setminus (x : \tau)); \Delta }&
+            { \quad \neg\operatorname{exp}(\tau) }
+            { \Gamma \parallel \Delta \vdash x : \tau \Rightarrow \Gamma \setminus (x : \tau) \rtimes \bot }&
         % variable-exp
         \prftree[rule]{\scriptsize (vexp)} 
             {  (x : \tau) \in \Delta }
-            { \quad \neg\operatorname{exp}(\tau) }
-            { \Gamma; \Delta \vdash x : \tau \Rightarrow \Gamma; \Delta }
+            { \quad \operatorname{exp}(\tau) }
+            { \Gamma \parallel \Delta \vdash x : \tau \Rightarrow \Gamma \rtimes \bot }
     \end{tabular} \\[1.5\baselineskip]
 
     % times
     \begin{tabular}{l}
         \prftree[rule]{\scriptsize ($\otimes$)} 
-            { \Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma'; \_ }
-            { \quad \Gamma'; \Delta' \vdash u : \sigma \Rightarrow \Gamma''; \_ }
-            { \Gamma; \Delta \vdash (t, u) : \tau * \sigma \Rightarrow \Gamma''; \Delta}
+            { \Gamma \parallel \Delta \vdash t : \tau \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \Gamma' \parallel \Delta \vdash u : \sigma \Rightarrow \Gamma'' \rtimes \beta'' }
+            { \Gamma \parallel \Delta \vdash (t, u) : \tau * \sigma \Rightarrow \Gamma'' \rtimes \beta' \vee \beta'' }
     \end{tabular} \\[1.5\baselineskip]
 
     % with
     \begin{tabular}{l}
         \prftree[rule]{\scriptsize ($\with$)} 
-            { \Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma'; \_ }
-            { \quad \Gamma; \Delta \vdash u : \sigma \Rightarrow \Gamma''; \_ }
-            { \Gamma' = \Gamma'' }
-            % { \Delta' = \Delta'' }
-            { \Gamma; \Delta \vdash \langle t, u \rangle : \tau \with \sigma \Rightarrow \Gamma''; \Delta }
+            { \Gamma \parallel \Delta \vdash t : \tau \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \Gamma \parallel \Delta \vdash u : \sigma \Rightarrow \Gamma'' \rtimes \beta'' }
+            { \quad \beta' \implies \Gamma' \subseteq \Gamma'' }
+            { \quad \beta'' \implies \Gamma'' \subseteq \Gamma'  }
+            { \Gamma \parallel \Delta \vdash \langle t, u \rangle : \tau \with \sigma \Rightarrow \Gamma' \cap \Gamma'' \rtimes \beta' \wedge \beta'' }
             % { \Gamma \vdash t : \tau \Rightarrow \Gamma' }
             % { \quad \Gamma \vdash u : \sigma \Rightarrow \Gamma'' }
-            % { (\Gamma \setminus \Gamma') \cap (\Gamma \setminus \Gamma'') = \varnothing }
+            % { (\Gamma \setminus \Gamma') \cap (\Gamma \setminus \Gamma'') = \varnothing }; \Delta
             % { \Gamma \vdash \langle t, u \rangle : \tau \with \sigma \Rightarrow \Gamma' \cap \Gamma'' }
     \end{tabular} \\[1.5\baselineskip]
 
@@ -143,52 +148,63 @@ The typing rules are the following:
     \begin{tabular}{ll}
         % l 
         \prftree[rule]{\scriptsize ($\oplus$-l)} 
-            { \Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma'; \_ }
-            { \Gamma; \Delta \vdash (t :> \_ + \sigma) : \tau + \sigma \Rightarrow \Gamma'; \Delta }&
+            { \Gamma \parallel \Delta \vdash t : \tau \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash (t :> \_ + \sigma) : \tau + \sigma \Rightarrow \Gamma' \rtimes \beta' }&
         % r
         \prftree[rule]{\scriptsize ($\oplus$-r)} 
-            { \Gamma; \Delta \vdash u : \sigma \Rightarrow \Gamma'; \_ }
-            { \Gamma; \Delta \vdash (u :> \sigma + \_) : \tau + \sigma \Rightarrow \Gamma'; \Delta }
+            { \Gamma \parallel \Delta \vdash u : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash (u :> \sigma + \_) : \tau + \sigma \Rightarrow \Gamma' \rtimes \beta' }
     \end{tabular} \\[1.5\baselineskip]
 
     % bang 
-    \begin{tabular}{ll}
+    \begin{tabular}{lll}
         % bang
         \prftree[rule]{\scriptsize ($\oc$)} 
-            { \Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma'; \Delta }
-            { \Gamma = \Gamma' }
-            { \Gamma; \Delta \vdash \oc t : \oc \tau \Rightarrow \Gamma; \Delta  }&
-        % % bang
+            { \varnothing \parallel \Delta \vdash t : \tau \Rightarrow \varnothing \rtimes \beta }
+            { \quad \Gamma = \Gamma' }
+            { \Gamma \parallel \Delta \vdash \oc t : \oc \tau \Rightarrow \Gamma \rtimes \bot }&
+        % bang
         \prftree[rule]{\scriptsize ($\oc$-dig)} 
-            { \Gamma; \Delta \vdash \oc t : \oc \tau \Rightarrow \Gamma'; \Delta }
-            { \Gamma; \Delta \vdash \oc \oc t : \oc \tau \Rightarrow \Gamma'; \Delta }
+            { \Gamma \parallel \Delta \vdash \oc t : \oc \tau \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash \oc \oc t : \oc \tau \Rightarrow \Gamma' \rtimes \beta' }
     \end{tabular}\\[1.5\baselineskip]
     
-    % \\[0.7\baselineskip]
-    % \begin{tabular}{ll}
-    %     % bang weak
-    %     \prftree[rule]{\scriptsize ($\oc$-weak)} 
-    %         { \Gamma \vdash t : \tau }
-    %         { \Gamma, x: \oc\sigma \vdash t : \tau } &
-    %     % bang contract
-    %     \prftree[rule]{\scriptsize ($\oc$-cont)} 
-    %         { \Gamma, x: \oc\sigma, x: \oc\sigma \vdash t : \tau }
-    %         { \Gamma, x: \oc\sigma \vdash t : \tau }
-    % \end{tabular} 
-    
-
     % lolli
-    \begin{tabular}{ll}
+    \begin{tabular}{l}
         % lollipop
         \prftree[rule]{\scriptsize ($\multimap$)} 
-            { \Gamma, x:\tau \vdash t : \sigma \Rightarrow \Gamma }
-            { \Gamma \vdash \textbf{fun } (x:\tau) \multimap t : \tau \multimap \sigma \Rightarrow \Gamma }&
+            { (\Gamma \setminus x) \cdot (x:\tau) \parallel \Delta \setminus x \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad x \in \Gamma' \implies \beta' }
+            { \quad \neg\operatorname{exp}(\tau)}
+            % { \tau \neq \top }
+            { \Gamma \parallel \Delta \vdash \textbf{fun } (x:\tau) \multimap t : \tau \multimap \sigma \Rightarrow \Gamma' \setminus (x : \tau) \rtimes \beta' }
+    \end{tabular}\\[1\baselineskip]
+
+    \begin{tabular}{l}
+        % lollipop
+        \prftree[rule]{\scriptsize ($\multimap$-!)} 
+            { \Gamma \setminus x \parallel (\Delta \setminus x) \cup (x:\tau) \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \operatorname{exp}(\tau)}
+            % { \tau \neq \top }
+            { \Gamma \parallel \Delta \vdash \textbf{fun } (x:\tau) \multimap t : \tau \multimap \sigma \Rightarrow \Gamma' \rtimes \beta' }
+    \end{tabular}\\[1\baselineskip]
+
+    \begin{tabular}{l}
         % lollipop app
         \prftree[rule]{\scriptsize ($\multimap$-app)} 
-            { \Gamma \vdash t : \sigma \multimap \tau}
-            { \quad \Gamma' \vdash t' : \sigma }
-            { \Gamma, \Gamma' \vdash t t' : \tau }
-    \end{tabular} \\[1.8\baselineskip]
+            { \Gamma \parallel \Delta \vdash t : \sigma \multimap \tau \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \Gamma' \parallel \Delta \vdash t' : \sigma \Rightarrow \Gamma'' \rtimes \beta'' }
+            { \Gamma \parallel \Delta \vdash t t' : \tau \Rightarrow \Gamma'' \rtimes \beta' \vee \beta' }
+    \end{tabular}\\[1\baselineskip]
+
+    
+    \begin{tabular}{l}
+        % lollipop app
+        \prftree[rule]{\scriptsize ($\multimap$-!app)} 
+            { \Gamma \parallel \Delta \vdash t : \ !(\sigma \multimap \tau) \Rightarrow \Gamma \rtimes \bot }
+            { \quad \Gamma \parallel \Delta \vdash t' : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash t t' : \tau \Rightarrow \Gamma'' \rtimes \beta' }
+    \end{tabular}\\[1.5\baselineskip]
 
     % arrow
     % \begin{tabular}{ll}
@@ -206,24 +222,151 @@ The typing rules are the following:
     % give
     \begin{tabular}{l}
         \prftree[rule]{\scriptsize (give)} 
-            { \Gamma, \Delta, \Delta' \vdash t : \sigma }
-            { \quad \Gamma, \Delta, x : \sigma \vdash t' : \tau }
-            { \quad (x:\sigma) \notin \Gamma }
-            { \Gamma \vdash \textbf{give } x = t \textbf{ in } t' : \tau }
+            { \Gamma \parallel \Delta \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \Gamma' \cdot (x : \sigma) \parallel \Delta \setminus x \vdash t' : \tau \Rightarrow \Gamma'' \rtimes \beta'' }
+            { \quad x \in \Gamma'' \implies \beta'' }
+            { \enskip \neg \operatorname{exp}(\sigma) } 
+            { \enskip \sigma \neq \top }
+            { \Gamma \parallel \Delta \vdash \textbf{give } x = t \textbf{ in } t' : \tau \Rightarrow \Gamma'' \rtimes \beta' \vee \beta'' }
     \end{tabular} \\[0.7\baselineskip]
 
     \begin{tabular}{l}
-        \prftree[rule]{\scriptsize (let)} 
-            { \Gamma \vdash \textbf{give } x = !t \textbf{ in } t' : \tau }
-            { \Gamma \vdash \textbf{let } x = t \textbf{ in } t' : \tau }
-    \end{tabular} \\[1.5\baselineskip]
+        \prftree[rule]{\scriptsize (!-give)} 
+            { \Gamma \parallel \Delta \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \Gamma' ; \Delta \cdot (x : \sigma) \vdash t' : \tau \Rightarrow \Gamma'' }
+            { \quad \operatorname{exp}(\sigma) }
+            { \Gamma; \Delta \vdash \textbf{give } x = t \textbf{ in } t' : \tau \Rightarrow \Gamma'' }
+    \end{tabular} \\[0.7\baselineskip]
+
+    % match
+    \begin{tabular}{l}
+        % lollipop
+        \prftree[rule]{\scriptsize (match-r)} 
+            { \Gamma; \Delta \vdash t : \sigma \Rightarrow \Gamma' }
+            { \quad \overrightarrow{\Gamma', \Delta \vdash p_i : \sigma \Uparrow \Gamma_i} }
+            { \quad \overrightarrow{\Gamma_i, \Delta \vdash m_i : \tau \Rightarrow \Gamma_i' } }
+            { \quad \forall i, j \enskip \Gamma'_i = \Gamma'_j }
+            { \Gamma; \Delta \vdash \textbf{match } t \textbf{ with } \overrightarrow{p_i \to m_i} : \tau \Rightarrow \Gamma'_0 }
+    \end{tabular} \\[0.7\baselineskip]
+
+    % \begin{tabular}{l}
+    %     % lollipop
+    %     \prftree[rule]{\scriptsize (match-r)} 
+    %         { \Gamma; \Delta \vdash t : \sigma \Rightarrow \Gamma' }
+    %         { \quad \overrightarrow{\Gamma', \Delta \vdash p_i : \sigma \Uparrow \Gamma_i} }
+    %         { \quad \overrightarrow{\Gamma_i, \Delta \vdash m_i : \tau \Rightarrow \Gamma_i' } }
+    %         { \quad \forall i, j \enskip \Gamma'_i = \Gamma'_j }
+    %         { \Gamma; \Delta \vdash \textbf{match } t \textbf{ return } \tau \textbf{ with } \overrightarrow{p_i \to m_i} : \tau \Rightarrow \Gamma'_0 }
+    % \end{tabular} \\[1.8\baselineskip]
 
     \caption{LinML terms typing rules}
     \label{termtyprules}
 \end{figure}
 
-
-
 \subsubsection{Patterns}
+
+
+Let $p, p'$ be patterns, $\tau, \sigma$ types, $\Gamma, \Gamma'$ linear typing contexts, and $\gamma, \gamma'$ a multiset of bindings. The typing judgements for patterns have the following shape :
+$$
+\Gamma \vdash p : \tau \Uparrow \gamma
+$$
+
+$\gamma$ contains the bindings that evaluating $p$ added to the environment. \vspace{\baselineskip}
+
+The typing rules are the following:
+
+\begin{figure}[H]
+\centering
+
+    % constants & trivialities
+    \begin{tabular}{lll}
+        % rule for one 
+        \prftree[rule]{\scriptsize ($\mathscr P$-$1$)} 
+            { \Gamma \vdash * : 1 \Uparrow \varnothing } &
+        % rule for variables
+        \prftree[rule]{\scriptsize ($\mathscr P$-var)} 
+            { \neg \operatorname{exp}(\tau) \implies x \notin \Gamma }
+            { \Gamma \vdash x : \tau \Uparrow \{ x : \tau  \} } &
+        % rule for tyannot
+        \prftree[rule]{\scriptsize ($\mathscr P$-ty)} 
+            { \Gamma \vdash p : \tau \Uparrow \gamma }
+            { \Gamma \vdash (p : \tau) : \tau \Uparrow \gamma }
+    \end{tabular} \\[1.5\baselineskip]
+
+    % with
+    \begin{tabular}{ll}
+        % rules for with
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\&$left)} 
+            { \Gamma \vdash p : \sigma \Uparrow \gamma }
+            { \Gamma \vdash \langle p, - \rangle : \sigma \with \tau \Uparrow \gamma } &
+
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\&$right)} 
+            { \Gamma \vdash p : \tau \Uparrow \gamma }
+            { \Gamma \vdash \langle -, p \rangle : \sigma \with \tau \Uparrow \gamma } 
+    \end{tabular} \\[1.5\baselineskip]
+
+    % plus
+    \begin{tabular}{ll}
+        % rules for with
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\oplus$left)} 
+            { \Gamma \vdash p : \sigma \Uparrow \gamma }
+            { \Gamma \vdash (p <: \_ + \tau) : \sigma \oplus \tau \Uparrow \gamma } &
+
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\oplus$right)} 
+            { \Gamma \vdash p : \tau \Uparrow \gamma }
+            { \Gamma \vdash (p <: \sigma + \_) : \sigma \oplus \tau \Uparrow \gamma }
+    \end{tabular} \\[1.5\baselineskip]
+
+    % tensor
+    \begin{tabular}{l}
+        % rules for with
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\otimes$)} 
+            { \Gamma \vdash p : \sigma \Uparrow \gamma }
+            { \quad \Gamma \vdash p' : \tau \Uparrow \gamma' }
+            { \quad \gamma \cap \gamma' = \varnothing }
+            { \Gamma \vdash (p, p') : \sigma * \tau \Uparrow \gamma \cup \gamma' }
+    \end{tabular} \\[1.5\baselineskip]
+
+    % bang
+    \begin{tabular}{ll}
+        % rules for bang
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\oc$)} 
+            { \Gamma \vdash p : \tau \Uparrow \gamma }
+            { \Gamma \vdash \oc p : \oc \tau \Uparrow \gamma } & 
+        % rules for bang discard
+        \prftree[rule]{\scriptsize ($\mathscr P$-$\oc$weaken)} 
+            { \Gamma \vdash \_ : \oc \tau \Uparrow \varnothing }
+    \end{tabular} \\[1.5\baselineskip]
+
+    % disjunction
+    \begin{tabular}{l}
+        % rules for bang
+        \prftree[rule]{\scriptsize ($\mathscr P$-disj)} 
+            { \Gamma \vdash p : \tau \Uparrow \gamma }
+            { \quad \Gamma \vdash p' : \tau \Uparrow \gamma' }
+            { \quad \gamma = \gamma' }
+            { \Gamma \vdash p \mid p' : \tau \Uparrow \gamma } 
+    \end{tabular} \\[1.5\baselineskip]
+
+
+
+    \caption{LinML pattern typing rules}
+    \label{termtyprules}
+\end{figure}
+
+
+\section{LL translation}
+
+\subsection{Prerequisites}
+
+\subsection{Defining the translation}
+
+In all the following, we will only consider the conservative fragment of LinML.
+
+The typing jugement $\Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma'$ has a direct translation in linear logic. The following theorem holds :
+
+$$
+\forall \text{ typing jugement } \Gamma; \Delta \vdash t : \tau \Rightarrow \Gamma' \quad \exists \text{ a linear sequent of interface } \Gamma \vdash \otimes (\Gamma' \cup \tau)
+$$
 
 \end{document}

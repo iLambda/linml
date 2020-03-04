@@ -17,6 +17,13 @@ type ftype =
 (* [multiplicity t] returns the multiplicity of the type *)
 let multiplicity _ = 1
 
+(* [multiply t m] gives multiplicity [m] to type [t] *)
+let multiply t = function 
+  (* Check multiplicity *)
+  | n when n <= 0 -> failwith "Multiplicity must be greater than zero"
+  | 1 -> t 
+  | _ -> failwith "Unsupported for now" 
+
 (* [is_exponential t] returns true iff the type has an exponential modality *)
 let is_exponential = function 
   (* These types are exponential *)

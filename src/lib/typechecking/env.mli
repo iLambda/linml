@@ -5,45 +5,102 @@ open Utils.Atom
 exception Unbound of atom 
 exception NoMore of atom 
 exception Bound of atom * int
-exception Incompatible
+exception NoBindTop
 
-(** The type of environment *)
+(** The type of linear environments *)
+type linenv
+
+(** The type of environments *)
 type env
 
-(** The type of digests *)
-type digest = (ftype * int) AtomMap.t
+(** The type of sets of bindings *)
+module Bindings : Set.S with type elt = (atom * ftype)
+
+(** The reason for the separation *)
+type separation =
+  | DifferentMult of int * int
+  | DifferentType of ftype * ftype
+
+(* ------------------------------------------------------------------------------- *)
+(* Constants *)
 
 (** [empty] represents the empty environment *)
 val empty: env
 
-(** [is_empty env] returns true iff the environment only has exponential bindings *)
-val is_empty: env -> bool
+(** [nothing] represents the linear empty environment *)
+val nothing: linenv
 
-(** [compose envl enve] returns a new environment containing the linear bindings of [env]
- and the exponential bindins of [enve] *)
-val compose: env -> env -> env
+(* ------------------------------------------------------------------------------- *)
+(* Environment manipulation *)
 
-(** [pick env] picks a linear variable from the environment *)
-val pick: env -> atom * int
+(** [consume env x] consumes a binding from the environment.
+    Raises [Unbound] if [x] not present.
+    Raises [NoMore x] if [x] is depleted.  *)
+val consume: env -> atom -> env * ftype
 
-(** [bind env x ty] binds a to [x] the type [ty] in the environment *)
+(** [bind env x ty] binds [x] to the type [ty] in the environment.
+    Raises [Bound (x, multiplicity)] if [x] was already bound.
+    Raises [NoBindTop] if [ty] is top. *)
 val bind: env -> atom -> ftype -> env
 
-(** [retrieve env x] consumes a binding from the environment *)
-val retrieve: env -> atom -> env * ftype
+(** [binds env b] binds all the bindings [x] in the environment.
+    Raises [Bound (x, multiplicity)] if [x] was already bound.
+    Raises [NoBindTop] if [ty] is top. *)
+val binds: env -> Bindings.t -> env
 
-(** [union env env'] merges the two environments *)
-val union: env -> env -> env
+(* ------------------------------------------------------------------------------- *)
+(* Environment composition *)
 
-(** [inter env env'] returns the intersection of the environments *)
-val inter: env -> env -> env
+(** [linearize env] returns a linear environment, containing only the linear variables of [env] *)
+val linearize: env -> linenv
 
-(** [equal env env'] checks if two environments are equal *)
-val equal: env -> env -> bool
+(** [exponentials env] returns an environment, containing only the exponential bindings of [env] *)
+val exponentials: env -> env
 
-(** [disjoint env env'] returns true iff the environments are disjoint *)
-val disjoint: env -> env -> bool
+(** [compose lenv env] returns a new environment containing the linear bindings of [lenv]
+ and the exponential bindings of [env] *)
+val compose: linenv -> env -> env
 
-(** [consumed env env'] returns the linear variables that were consumed 
-    when going from [env] to [env']*)
-val consumed: env -> env -> env
+(* ------------------------------------------------------------------------------- *)
+(* Multiset operations *)
+
+(** [is_empty lenv] returns true iff the linear environment is empty *)
+val is_empty: linenv -> bool
+
+(** [has lenv x] checks if a variable belongs to a linear environment *)
+val has: linenv -> atom -> bool
+
+(** [multiplicity lenv x] checks the multiplicity of [x] in [lenv] *)
+val multiplicity: linenv -> atom -> int
+
+(** [equal lenv lenv'] checks if two linear environments are equal *)
+val equal: linenv -> linenv -> bool
+
+(** [subset lenv lenv'] returns true iff [env'] is a subset of [env] *)
+val subset: linenv -> linenv -> bool
+
+(** [difference lenv lenv'] returns the linear variables that are in [env] 
+    but not in [env']*)
+val difference: linenv -> linenv -> linenv
+
+(** [split env x] returns two environments.
+    The second one containing just the binding for [x] (or is empty if [x] is not in [env]),
+    the first containing the rest of [env] *)
+val split: linenv -> atom -> linenv * linenv
+
+(** [merge env env'] merges two environments. *)
+val merge: linenv -> linenv -> linenv
+
+(** [purge env x] removes x from the environment altogether *)
+val purge: linenv -> atom -> linenv
+
+(* ------------------------------------------------------------------------------- *)
+(* Selection *)
+
+(** [separate env env'] picks a binding that is either in [env] and not in [env'], or 
+in [env'] but not in [env], and also returns the reason for the separation *)
+val separate: linenv -> linenv -> atom * separation
+
+(** [pick env] picks a linear variable from the environment *)
+val pick: linenv -> atom * int
+

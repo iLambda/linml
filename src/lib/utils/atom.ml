@@ -95,15 +95,100 @@ end
 module AtomSet =
   Set.Make (Atom)
 
-module AtomMap = struct
 
+module AtomMap = struct
+  
   include Map.Make (Atom)
+
+  exception StopMerge
+  exception StopPick
 
   let of_list kds =
     List.fold_left (fun m (key, data) -> add key data m) empty kds
 
   let cardinal m =
     fold (fun _ _ n -> n + 1) m 0
+
+  let fold2 f m1 m2 d = 
+    fold 
+      (fun x b1 -> f x b1 (find_opt x m2))
+      m1 d
+
+  let pick f m = 
+    let store = ref None in
+    (try 
+      iter
+        (fun x v -> if f x v then (store := Some (x, v); raise StopPick))
+        m
+    with | StopPick -> ());
+    match !store with   
+      | None -> raise Not_found
+      | Some c -> c
+
+  let pickmap f m = 
+    let store = ref None in
+    (try 
+      iter
+        (fun x v -> match f x v with 
+          | None -> ()
+          | Some c -> 
+              store := (Some (x, c)); 
+              raise StopPick)
+        m
+    with | StopPick -> ());
+    match !store with   
+      | None -> raise Not_found
+      | Some c -> c
+
+  let pick2 f m1 m2 = 
+    let store = ref None in
+    (try 
+      ignore 
+        (merge 
+          (fun x b1 b2 -> 
+            (* Check predicate *)
+            if f x b1 b2 
+            (* True, return pick *)
+            then (store := Some (x, b1, b2); raise StopPick)
+            (* False, continue *)
+            else None)
+          m1 m2)
+    with | StopPick -> ());
+    match !store with   
+      | None -> raise Not_found
+      | Some c -> c
+
+  let pickmap2 f m1 m2 = 
+    let store = ref None in
+    (try 
+      ignore 
+        (merge 
+          (fun x b1 b2 -> match f x b1 b2 with 
+            | None -> None
+            | Some c -> 
+                store := (Some (x, c)); 
+                raise StopPick)
+          m1 m2)
+    with | StopPick -> ());
+    match !store with   
+      | None -> raise Not_found
+      | Some c -> c
+
+  let for_all2 f m1 m2 = 
+    try 
+      let _ = 
+        merge 
+          (fun x b1 b2 -> 
+            (* Check predicate *)
+            if f x b1 b2 
+            (* True, keep going *)
+            then None
+            (* False, get out *)
+            else raise StopMerge)
+          m1 m2
+      in true
+    with 
+      | StopMerge -> false 
 
   let index m =
     let n, m =

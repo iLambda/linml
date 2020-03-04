@@ -14,3 +14,5 @@ bin
 *.synctex*
 todo
 test/
+doc/references
+.fuse_*

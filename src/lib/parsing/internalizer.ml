@@ -1,4 +1,5 @@
 open Lang
+open Lang.Sort
 open Lang.Types
 open Lang.Terms
 open Syntax
@@ -19,7 +20,7 @@ let bind env id : atom * env =
   let env = Import.bind env id in
   Import.resolve env id, env
 
-let free = Import.free
+let free _ _ = () (*Import.free*)
 
 (* [itype] converts a type from external syntax into internal syntax. *)
 let ityvar env a =
@@ -128,6 +129,8 @@ and ipattern loc tctable env = function
       PatData (loc, Import.resolve env d, tyvars, fields, ref None), env *)
   (* * *)
   | SynPatOne -> PatOne, env
+  (* _ *)
+  | SynPatWildcard -> PatWildcard, env
   (* x *)
   | SynPatVar x -> 
       (* Check if identifier free. No shadowing in patterns *)
@@ -186,7 +189,7 @@ and ipattern loc tctable env = function
 
 
 and get_id_pattern = function 
-  | SynPatOne -> []
+  | SynPatOne | SynPatWildcard -> []
   | SynPatVar x -> [x]
   | SynPatTyAnnot (p, _) | SynPatBang p | SynPatUnion (p, _)
   | SynPatAltPair (_, p, _) | SynPatLoc(_, p) -> get_id_pattern p

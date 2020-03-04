@@ -29,6 +29,7 @@
     "with", KEYWORD_WITH;
     "return", KEYWORD_RETURN;
     "end", KEYWORD_END;
+    "either", KEYWORD_EITHER;
   ]
   (* Try to convert a string to a keyword *)
   let keyword_of_string str = List.assoc str keywords

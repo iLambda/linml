@@ -2,6 +2,11 @@ open Lang.Terms
 open Lang.Types
 open Utils
 
+(* Type of stricness  *)
+type strictness = 
+  | Strict 
+  | Slack
+
 (* The type-checker checks that a complete program is well-typed. *)
 
 (* Furthermore, the type-checker records typing information in various

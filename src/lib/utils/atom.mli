@@ -39,6 +39,13 @@ module AtomMap : sig
 
   val of_list: (atom * 'a) list -> 'a t
 
+  val for_all2 : (atom -> 'a option -> 'b option -> bool) -> 'a t -> 'b t -> bool
+  val fold2 : (atom -> 'a -> 'b option -> 'c -> 'c) -> 'a t -> 'b t -> 'c -> 'c
+  val pick : (atom -> 'a -> bool) -> 'a t -> atom * 'a
+  val pick2 : (atom -> 'a option -> 'b option -> bool) -> 'a t -> 'b t -> atom * 'a option * 'b option
+  val pickmap : (atom -> 'a -> 'b option) -> 'a t -> atom * 'b
+  val pickmap2 : (atom -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> atom * 'c 
+
   val cardinal: 'a t -> int
   val index: 'a t -> int * (key -> int)
 

@@ -26,6 +26,8 @@ val equal: ftype -> ftype -> bool
 val is_exponential: ftype -> bool
 (* [multiplicity t] returns the multiplicity of the type *)
 val multiplicity: ftype -> int
+(* [multiply t m] gives multiplicity [m] to type [t] *)
+val multiply: ftype -> int -> ftype 
 
 val pp_ftype: Format.formatter -> ftype -> unit
 val compare_ftype: ftype -> ftype -> int

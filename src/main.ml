@@ -23,9 +23,10 @@ let process filename =
   |> read
   (* |> (fun p -> print_string (Syntax.show_program p); p) *)
   |> Parsing.Internalizer.program
-  |> (fun p -> print_string (Lang.Terms.show_pre_program p); p)
+  (* |> (fun p -> print_string (Lang.Terms.show_pre_program p); p) *)
   |> Typechecker.run
-  |> (fun (_, t) -> (Lang.Types.pp_ftype Format.std_formatter t); t)
+  (* |> (fun (_, t) -> (Lang.Types.pp_ftype Format.std_formatter t); t) *)
+  |> (fun (_ , t) -> print_string (Lang.Printer.print_type (Export.empty) t); t)
 
   (* Discard *)
   |> ignore

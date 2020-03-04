@@ -1,4 +1,5 @@
 %{
+  open Lang.Sort
   open Syntax
   open Utils
 
@@ -13,13 +14,16 @@
     | Some ty -> SynPatTyAnnot (p, ty)
 
   (* Make a give *)
-  let rec give ?ty pat value body = match pat with 
+  let rec give ?ty p value body = match p, ty with 
     (* Desugar into simple give, with type annot if necessary *)
-    | SynPatVar x -> optional_ty_annot (SynTeGive (x, value, body)) ty
+    | SynPatVar x, _-> SynTeGive (x, optional_ty_annot value ty, body)
     (* Desugar the type annot into a return type for match *)
-    | SynPatTyAnnot (p, t) -> give p value body ~ty:t
+    | SynPatTyAnnot (p, t), _ -> give p value body ~ty:t
+    (* Destruct locations *)
+    | SynPatLoc (_, p), None -> give p value body
+    | SynPatLoc (_, p), Some ty -> give ~ty:ty p value body
     (* Default case is : make a match out of it*)
-    | _ -> SynTeMatch (value, ty, [SynClause (pat, body)])
+    | _ -> SynTeMatch (value, ty, [SynClause (p, body)])
     
   (* Accumulate value *)
   let accumulate_nonempty f l = match List.rev l with 
@@ -32,6 +36,8 @@
       | [], None -> t
       | [], Some after_ty -> SynTeUnionLeft (t, after_ty) 
       | ty::tl, _ -> SynTeUnionRight (ty, inject (tl, after_oty) t)
+
+  (* Make the pattern to extract an injection *)
 
   (* Make an abstraction *)
   let linear_abs arguments t = 
@@ -51,7 +57,7 @@
 (* Keywords *)
 %token (*KEYWORD_LET*) KEYWORD_GIVE KEYWORD_IN
 %token KEYWORD_FUN
-%token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END
+%token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
 (* Operators *)
 %token OPERATOR_FATARROW OPERATOR_LOLLIPOP 
 %token OPERATOR_INJECT OPERATOR_EXTRACT
@@ -95,8 +101,6 @@ locp(p):
 term_variable:
   | id = IDENTIFIER
     { Identifier.mak term_sort id }
-  | PUNCTUATION_UNDERSCORE
-    { Identifier.mak term_sort ("_", $startpos, $endpos) }
 
 (* Arguments *)
 term_argument:
@@ -133,7 +137,7 @@ typ0:
   (* (A) *)
   | PUNCTUATION_LPAREN ty=typ PUNCTUATION_RPAREN { ty }
   (* A! *)
-  | ty=typ0 PUNCTUATION_BANG { SynTyBang ty }
+  | PUNCTUATION_BANG ty=typ0 { SynTyBang ty }
   (* A * B *)
   | ty1=typ0 PUNCTUATION_STAR ty2=typ0 { SynTyTensor (ty1, ty2) }
   (* A & B *)
@@ -186,6 +190,8 @@ alt_pair_pattern:
 pattern0:
   (* * *)
   | PUNCTUATION_STAR { SynPatOne }
+  (* _ *)
+  | PUNCTUATION_UNDERSCORE { SynPatWildcard }
   (* x *)
   | x=term_variable { SynPatVar x }
   (* (p : t) *)
@@ -197,7 +203,7 @@ pattern0:
   | PUNCTUATION_LANGLE ps=alt_pair_pattern PUNCTUATION_RANGLE
     { let b,p,a = ps in SynPatAltPair (b,p,a)  }
   (* p <: A + _ + A *)
-  | p=pattern0 OPERATOR_EXTRACT inj=injection
+  | p=locp(pattern0) OPERATOR_EXTRACT inj=injection
     { SynPatUnion (p, inj) }
   (* (p) *)
   | PUNCTUATION_LPAREN p=locp(pattern) PUNCTUATION_RPAREN { p }
@@ -233,6 +239,9 @@ term0:
   | x=term_variable { SynTeVar x }
   (* x! *)
   | PUNCTUATION_BANG t=loc(term0) { SynTeBang t }
+  (* <t> *)
+  | PUNCTUATION_LANGLE t=term1 PUNCTUATION_RANGLE
+    { t }
   (* <t1, t2> *)
   | PUNCTUATION_LANGLE t=loc(term1) PUNCTUATION_COMMA 
     ts=separated_nonempty_list(PUNCTUATION_COMMA, loc(term1))
@@ -261,7 +270,7 @@ term:
   | KEYWORD_FUN arguments=term_arguments OPERATOR_LOLLIPOP body=loc(term)
     { linear_abs arguments body }
   (* give x : A = t *)
-  | KEYWORD_GIVE p=pattern codomain=preceded(PUNCTUATION_COLON, typ)?
+  | KEYWORD_GIVE p=locp(pattern) codomain=preceded(PUNCTUATION_COLON, typ)?
     PUNCTUATION_EQUAL t1=loc(term) KEYWORD_IN t2=loc(term)
     { give (optional_pat_ty_annot p codomain) t1 t2 }
   (* match t return T with | p => t *)
@@ -270,6 +279,17 @@ term:
     c=clauses 
     KEYWORD_END
     { SynTeMatch (t, ty, c) }
+  (* either | x | y *)
+  | KEYWORD_EITHER PUNCTUATION_BAR? ts=separated_list(PUNCTUATION_BAR, loc(term))
+    KEYWORD_END
+    { match ts with 
+        (* No clauses is top *)
+        | [] -> SynTeConst (SynTeTop)
+        (* One clause is identity *)
+        | [t] -> t
+        (* Multiple clauses *)
+        | t::ts -> accumulate_nonempty (fun t a -> SynTeAltPair(t, a)) (t::ts)
+    }
   (* x :> A + _ *)
   | t=loc(term1) OPERATOR_INJECT inj=injection
     { inject inj t }

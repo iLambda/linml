@@ -23,6 +23,8 @@ and application_metadata = {
   domain: ftype;
   (* The codomain of the function *)
   codomain: ftype;
+  (* Was the function banged ? *)
+  bang: bool;
 }
 
 [@@deriving show]
@@ -85,7 +87,7 @@ type ('a, 'b, 'c) _fterm =
       ('a, 'b, 'c) _fterm *       (* Scrutinee *)
       ftype option *              (* Return type, if given *)
       ('a, 'b, 'c) _clause list *  (* Clauses *)
-      'c                          (* Metadata (return type) *)
+      'c                           (* Metadata (return type) *)
   (*
    *  ANNOTATIONS
    *)
@@ -110,13 +112,11 @@ and ('a, 'b, 'c) _clause =
 and pattern = 
   (* * *)
   | PatOne
+  (* _ *)
+  | PatWildcard
   (* x *)
   | PatVar of 
       atom        (* Name of binding *)
-  (* x : A *)
-  | PatTyAnnot of 
-      pattern *   (* Subpattern *)
-      ftype       (* Type annotation *)
   (* x! *)
   | PatBang of 
       pattern     (* Subpattern *) 
@@ -142,6 +142,10 @@ and pattern =
   | PatLoc of 
       location *  (* Location *)
       pattern     (* Pattern *)
+  (* p : A *)
+  | PatTyAnnot of 
+      pattern *   (* Subpattern *)
+      ftype       (* Type annotation *)
 
 and constant =
   (* Mul unit *)
@@ -151,7 +155,7 @@ and constant =
 
 and integer = Int64.t
 
-[@@deriving show, map]
+[@@deriving show, map, fold]
 
 (* Program *)
 type ('a, 'b, 'c) _program = 
@@ -178,7 +182,7 @@ and pre_program =
    application_metadata runtime,
    type_metadata runtime) _program
 
-[@@deriving show]
+[@@deriving show, fold]
 
 (*
  *  POST PETRIFICATION
@@ -198,7 +202,7 @@ and program =
    application_metadata,
    type_metadata) _program
 
-[@@deriving show]
+[@@deriving show, fold]
 
 (* Helpers *)
 

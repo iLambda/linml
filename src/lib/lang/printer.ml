@@ -11,6 +11,7 @@ let top = string "T"
 let arrow = string " ->"
 let lolli = string " -o"
 let wth = string " & "
+let plus = string " + "
 let tensor = string " * "
 let bang = string "!"
 
@@ -45,7 +46,7 @@ let rec pty0 env ty =
 and pty1 env ty =
   match ty with
     (* A + B *)
-    | TyPlus (ty1, ty2) -> pty1 env ty1 ^^ wth ^^ pty1 env ty2
+    | TyPlus (ty1, ty2) -> pty1 env ty1 ^^ plus ^^ pty1 env ty2
     (* t *)
     | _ -> pty0 env ty
 
