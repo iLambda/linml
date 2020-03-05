@@ -55,8 +55,6 @@ let abstract a ty =
   let body = abstract a 0 ty in
   { hint; body }
 
-(* val abstract: atom -> ftype -> ftype_context *)
-
 (** [fill c ty] fills the type context [c] with the type [ty], producing a
     type. *)
 
@@ -126,6 +124,7 @@ let rec equal ty1 ty2 =
     | TyTop, TyTop -> true
     | TyZero, TyZero -> true
     (* Free type variables  *)
+    | TyBoundVar i, TyBoundVar j -> i = j
     | TyFreeVar a1, TyFreeVar a2 -> Atom.equal a1 a2
     (* Bangs *)
     | TyBang (TyBang ty), TyBang ty' 

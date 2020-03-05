@@ -115,6 +115,8 @@ rule main = parse
   | '_'             { PUNCTUATION_UNDERSCORE }
   | '('             { PUNCTUATION_LPAREN }
   | ')'             { PUNCTUATION_RPAREN }
+  | '['             { PUNCTUATION_LBRACKET }
+  | ']'             { PUNCTUATION_RBRACKET }
   | '<'             { PUNCTUATION_LANGLE }
   | '>'             { PUNCTUATION_RANGLE }
   | '!'             { PUNCTUATION_BANG }

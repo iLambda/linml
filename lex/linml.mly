@@ -41,9 +41,19 @@
   let forall tvars t =
     List.fold_right (fun tv ty -> SynTyForall (tv, ty)) tvars t
 
+  (* Make a type abstraction *)
+  let ty_abs tyvars t = 
+    List.fold_right (fun id t -> SynTeTyAbs (id, t)) tyvars t
+    
+  (* Make a type application *)
+  let ty_app t tys = 
+    List.fold_left (fun t ty -> SynTeTyApp (t, ty)) t tys
+
   (* Make an abstraction *)
-  let linear_abs arguments t = 
-    List.fold_right (fun (x, ty) t -> SynTeLinAbs (x, ty, t)) arguments t
+  let linear_abs tyvars arguments t = 
+    ty_abs 
+      tyvars
+      (List.fold_right (fun (x, ty) t -> SynTeLinAbs (x, ty, t)) arguments t)
 
 %}
 
@@ -71,6 +81,7 @@
 (* Punctuation *)
 %token PUNCTUATION_LPAREN PUNCTUATION_RPAREN 
 %token PUNCTUATION_LANGLE PUNCTUATION_RANGLE  
+%token PUNCTUATION_LBRACKET PUNCTUATION_RBRACKET
 %token PUNCTUATION_STAR PUNCTUATION_AND PUNCTUATION_PLUS
 %token (*PUNCTUATION_SEMICOLON*) PUNCTUATION_COLON PUNCTUATION_MINUS
 %token PUNCTUATION_BAR 
@@ -136,12 +147,31 @@ term_argument:
     PUNCTUATION_COLON domain=typ
     PUNCTUATION_RPAREN
     { List.map (fun x -> x, domain) xs }
-
+    
 term_arguments:
   (* (x:A) *)
   | a=term_argument { a }
   (* (x:A) ... (x:A) *)
   | a=term_argument args=term_arguments { a @ args }
+
+(* Type arguments *)
+type_formal_argument: 
+  (* [a ... a] *)
+  | PUNCTUATION_LBRACKET xs=type_variable+ PUNCTUATION_RBRACKET
+    { xs }
+
+type_formal_arguments:
+  (* [a ... a] *)
+  | x=type_formal_argument
+    { x }
+  (* [a ... a] [a ... a ]*)
+  | x=type_formal_argument xs=type_formal_arguments 
+    { x @ xs }
+    
+type_actual_argument:
+  (* [A ... A] *)
+  | PUNCTUATION_LBRACKET ty=typ+ PUNCTUATION_RBRACKET
+    { ty }
 
 (* Type constants *)
 %inline typconst:
@@ -298,6 +328,8 @@ term1:
   | t=term0 { t }
   (* t t' *)
   | t1=loc(term1) t2=loc(term0) { SynTeApp (t1, t2) }
+  (* t [A ... A] ... [A .. A] *)
+  | t=loc(term1) tys=type_actual_argument { ty_app t tys }
 
 term:
   (* t *)
@@ -306,9 +338,12 @@ term:
   | t=loc(term1) PUNCTUATION_COMMA 
     ts=separated_nonempty_list(PUNCTUATION_COMMA, loc(term1))
     { accumulate_nonempty (fun t a -> SynTeSimPair(t, a)) (t::ts)  }
+  (* forall [a...a] -> t *)
+  | KEYWORD_FORALL tyvars=type_formal_arguments PUNCTUATION_MINUS PUNCTUATION_RANGLE body=loc(term)
+    { ty_abs tyvars body }
   (* (x:A) -o t *)
-  | KEYWORD_FUN arguments=term_arguments OPERATOR_LOLLIPOP body=loc(term)
-    { linear_abs arguments body }
+  | KEYWORD_FUN tyvars=loption(type_formal_arguments) arguments=term_arguments OPERATOR_LOLLIPOP body=loc(term)
+    { linear_abs tyvars arguments body }
   (* give x : A = t *)
   | KEYWORD_GIVE p=locp(pattern) codomain=preceded(PUNCTUATION_COLON, typ)?
     PUNCTUATION_EQUAL t1=loc(term) KEYWORD_IN t2=loc(term)
