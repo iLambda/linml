@@ -1,4 +1,10 @@
 (include_subdirs no)
 (executable
   (name main)
+  (modules main)
   (libraries lang parsing typechecking utils))
+
+(executable
+  (name lltop)
+  (modules lltop)
+  (libraries repl))
