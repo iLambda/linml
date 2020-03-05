@@ -148,12 +148,12 @@ The typing rules are the following:
     \begin{tabular}{ll}
         % l 
         \prftree[rule]{\scriptsize ($\oplus$-l)} 
-            { \Gamma \parallel \Delta \vdash t : \tau \Rightarrow \Gamma' \rtimes \beta' }
-            { \Gamma \parallel \Delta \vdash (t :> \_ + \sigma) : \tau + \sigma \Rightarrow \Gamma' \rtimes \beta' }&
+            { \Gamma \parallel \Delta \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash (t :> \_ + \tau) : \sigma + \tau \Rightarrow \Gamma' \rtimes \beta' }&
         % r
         \prftree[rule]{\scriptsize ($\oplus$-r)} 
-            { \Gamma \parallel \Delta \vdash u : \sigma \Rightarrow \Gamma' \rtimes \beta' }
-            { \Gamma \parallel \Delta \vdash (u :> \sigma + \_) : \tau + \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash u : \tau \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash (u :> \sigma + \_) : \sigma + \tau \Rightarrow \Gamma' \rtimes \beta' }
     \end{tabular} \\[1.5\baselineskip]
 
     % bang 
@@ -176,6 +176,7 @@ The typing rules are the following:
             { (\Gamma \setminus x) \cdot (x:\tau) \parallel \Delta \setminus x \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
             { \quad x \in \Gamma' \implies \beta' }
             { \quad \neg\operatorname{exp}(\tau)}
+            { \quad \tau \neq \top }
             % { \tau \neq \top }
             { \Gamma \parallel \Delta \vdash \textbf{fun } (x:\tau) \multimap t : \tau \multimap \sigma \Rightarrow \Gamma' \setminus (x : \tau) \rtimes \beta' }
     \end{tabular}\\[1\baselineskip]
@@ -223,30 +224,31 @@ The typing rules are the following:
     \begin{tabular}{l}
         \prftree[rule]{\scriptsize (give)} 
             { \Gamma \parallel \Delta \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
-            { \quad \Gamma' \cdot (x : \sigma) \parallel \Delta \setminus x \vdash t' : \tau \Rightarrow \Gamma'' \rtimes \beta'' }
-            { \quad x \in \Gamma'' \implies \beta'' }
-            { \enskip \neg \operatorname{exp}(\sigma) } 
-            { \enskip \sigma \neq \top }
-            { \Gamma \parallel \Delta \vdash \textbf{give } x = t \textbf{ in } t' : \tau \Rightarrow \Gamma'' \rtimes \beta' \vee \beta'' }
+            { \enskip \Gamma' \cdot (x : \sigma) \parallel \Delta \setminus x \vdash t' : \tau \Rightarrow \Gamma'' \rtimes \beta'' }
+            { \enskip x \in \Gamma'' \implies \beta'' }
+            {  x \notin \Gamma' }
+            { \neg \operatorname{exp}(\sigma) } 
+            {  \sigma \neq \top }
+            { \Gamma \parallel \Delta \vdash \textbf{give } x = t \textbf{ in } t' : \tau \Rightarrow (\Gamma'' \setminus x) \rtimes \beta' \vee \beta'' }
     \end{tabular} \\[0.7\baselineskip]
 
     \begin{tabular}{l}
         \prftree[rule]{\scriptsize (!-give)} 
             { \Gamma \parallel \Delta \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
-            { \quad \Gamma' ; \Delta \cdot (x : \sigma) \vdash t' : \tau \Rightarrow \Gamma'' }
+            { \quad \Gamma' \parallel \Delta \cdot (x : \sigma) \vdash t' : \tau \Rightarrow \Gamma'' \rtimes \beta'' }
             { \quad \operatorname{exp}(\sigma) }
-            { \Gamma; \Delta \vdash \textbf{give } x = t \textbf{ in } t' : \tau \Rightarrow \Gamma'' }
+            { \Gamma \parallel \Delta \vdash \textbf{give } x = t \textbf{ in } t' : \tau \Rightarrow \Gamma'' \rtimes \beta' \vee \beta'' }
     \end{tabular} \\[0.7\baselineskip]
 
     % match
     \begin{tabular}{l}
         % lollipop
         \prftree[rule]{\scriptsize (match-r)} 
-            { \Gamma; \Delta \vdash t : \sigma \Rightarrow \Gamma' }
-            { \quad \overrightarrow{\Gamma', \Delta \vdash p_i : \sigma \Uparrow \Gamma_i} }
-            { \quad \overrightarrow{\Gamma_i, \Delta \vdash m_i : \tau \Rightarrow \Gamma_i' } }
-            { \quad \forall i, j \enskip \Gamma'_i = \Gamma'_j }
-            { \Gamma; \Delta \vdash \textbf{match } t \textbf{ with } \overrightarrow{p_i \to m_i} : \tau \Rightarrow \Gamma'_0 }
+            { \Gamma \parallel \Delta \vdash t : \sigma \Rightarrow \Gamma' \rtimes \beta' }
+            { \quad \overrightarrow{\Gamma' \parallel \Delta \vdash p_i : \sigma \Uparrow \gamma_i} }
+            { \quad \overrightarrow{(\Gamma' \parallel \Delta) \cup \gamma_i \vdash m_i : \tau \Rightarrow \Gamma_i \rtimes \beta_i } }
+            { \quad \overrightarrow{\neg \beta_i \implies \gamma_i \cap \Gamma_i = \varnothing } }
+            { \Gamma \parallel \Delta \vdash \textbf{match } t \textbf{ with } \overrightarrow{p_i \to m_i} : \tau \Rightarrow \left(\bigcap (\Gamma_i \setminus \gamma_i)\right) \rtimes \left(\beta' \vee \left(\bigvee \beta_i\right)\right) }
     \end{tabular} \\[0.7\baselineskip]
 
     % \begin{tabular}{l}
@@ -286,6 +288,7 @@ The typing rules are the following:
         % rule for variables
         \prftree[rule]{\scriptsize ($\mathscr P$-var)} 
             { \neg \operatorname{exp}(\tau) \implies x \notin \Gamma }
+            { \quad \tau \neq \top }
             { \Gamma \vdash x : \tau \Uparrow \{ x : \tau  \} } &
         % rule for tyannot
         \prftree[rule]{\scriptsize ($\mathscr P$-ty)} 

@@ -49,7 +49,7 @@ val bind: env -> atom -> ftype -> env
 val binds: env -> Bindings.t -> env
 
 (* ------------------------------------------------------------------------------- *)
-(* Environment composition *)
+(* Environment conversion *)
 
 (** [linearize env] returns a linear environment, containing only the linear variables of [env] *)
 val linearize: env -> linenv
@@ -60,6 +60,11 @@ val exponentials: env -> env
 (** [compose lenv env] returns a new environment containing the linear bindings of [lenv]
  and the exponential bindings of [env] *)
 val compose: linenv -> env -> env
+
+(** [of_bindings b] returns a new environment containing the linear bindings of [b].
+    Raises [Bound (x, multiplicity)] if [x] was already bound.
+    Raises [NoBindTop] if [ty] is top. *)
+val of_bindings: Bindings.t -> linenv
 
 (* ------------------------------------------------------------------------------- *)
 (* Multiset operations *)
@@ -82,6 +87,9 @@ val subset: linenv -> linenv -> bool
 (** [difference lenv lenv'] returns the linear variables that are in [env] 
     but not in [env']*)
 val difference: linenv -> linenv -> linenv
+    
+(** [inter lenv lenv'] returns the intersection of the environments*)
+val inter: linenv -> linenv -> linenv
 
 (** [split env x] returns two environments.
     The second one containing just the binding for [x] (or is empty if [x] is not in [env]),
@@ -93,6 +101,9 @@ val merge: linenv -> linenv -> linenv
 
 (** [purge env x] removes x from the environment altogether *)
 val purge: linenv -> atom -> linenv
+
+(** [purges env b] removes all the bindings [b] from the environment altogether *)
+val purges: linenv -> Bindings.t -> linenv
 
 (* ------------------------------------------------------------------------------- *)
 (* Selection *)

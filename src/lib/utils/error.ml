@@ -1,4 +1,5 @@
-open Printf
+open ANSITerminal
+(* open Printf *)
 open Lexing
 
 type location =
@@ -20,8 +21,10 @@ let print_location (pos1, pos2) =
   let line = pos1.pos_lnum in
   let char1 = pos1.pos_cnum - pos1.pos_bol in
   let char2 = pos2.pos_cnum - pos1.pos_bol in (* intentionally [pos1.pos_bol] *)
-  fprintf stderr "File \"%s\", line %d, characters %d-%d:\n" file line char1 char2
-    (* use [char1 + 1] and [char2 + 1] if *not* using Caml mode *)
+  (* Print as bold *)
+  eprintf [ Bold ]
+   "File \"%s\", line %d, characters %d-%d:\n" file line char1 char2
+  (* use [char1 + 1] and [char2 + 1] if *not* using Caml mode *)
 
 let signaled =
   ref false
@@ -34,7 +37,10 @@ let atoms2locs atoms =
 
 let warning locs message =
   List.iter print_location locs;
-  fprintf stderr "%s%!" message;
+  (* Print error *)
+  eprintf [ Bold; Foreground Red ] "Error";
+  eprintf [] ": ";
+  eprintf [] "%s%!" message;
   (* Flush stdout *)
   flush stdout
 

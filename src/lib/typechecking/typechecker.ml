@@ -182,7 +182,6 @@ let rec infer
       (* Return codomain *)
       codom, (lenv2, slackest mod1 mod2)
 
-        
     (* give x = t1 in t2*)
     | TeGive (x, t1, t2) -> 
       (* Infer type of t1 *)
@@ -219,27 +218,62 @@ let rec infer
       let scrutinee_env = Env.compose scrutinee_lenv env in
       (* Check if top *)
       if Types.equal scrutinee_ty TyTop then 
-        Typefail.no_bind_top xenv (locate loc t) "as the scrutinee of a matc";
+        Typefail.no_bind_top xenv (locate loc t) "be the scrutinee of a match";
 
       (* Evaluate patterns *)
-      let patterns_bindings = List.map (fun (Clause (pat, _)) -> pattern p xenv scrutinee_lenv loc pat scrutinee_ty) clauses in
+      let pattern_binder = (Fun.flip (pattern p xenv scrutinee_lenv loc)) scrutinee_ty in
+      let patterns = List.map (fun (Clause (pat, _)) -> pat) clauses in
+      let patterns_bindings = List.map pattern_binder patterns in
       let patterns_envs = List.map (Env.binds scrutinee_env) patterns_bindings in
+
+      (* Check that patterns are exhaustive *)
+      exhaustive patterns;
 
       (* Obtain return type *)
       let body_ty = match oty with 
         (* Match has return statement *)
         | Some ty -> ty
         (* Infer from first available clause *)
-        | None -> assert false 
+        | None -> 
+            (* Helper to infer type from body *)
+            let infer_from_branch env (Clause (_, body)) = infer p xenv env loc body in
+            (* Get the first one *)
+            let inferred_ty, _ = 
+              infer_from_branch 
+                (List.hd patterns_envs) 
+                (List.hd clauses) in 
+            (* Return *)
+            inferred_ty
       in
       (* Evaluate all bodies *)
+      let body_checker env body = check p xenv env loc body body_ty in
       let bodies = List.map (fun (Clause (_, b)) -> b) clauses in 
-      let bodies_env = List.map2 (fun env body -> check p xenv env loc body body_ty) patterns_envs bodies in
+      let bodies_inferred = List.map2 body_checker patterns_envs bodies in
+      let bodies_envs, bodies_mods = List.split bodies_inferred in
 
+      (* Check if all bindings have been consumed, if modality is strict *)
+      let consumption_check (env, modality) bindings = 
+        (* If modality is strict and bindings are left *)
+        if modality = Strict then begin
+          (* Compute intersection of bindings and linear environment *)
+          let bindings_left = Env.inter (Env.of_bindings bindings) env in
+          (* Check if it is empty *)
+          if not (Env.is_empty bindings_left) then 
+            (* Pick one variable and error *)
+            Typefail.unused xenv loc (Env.pick bindings_left);
+        end
+      in
+      List.iter2 consumption_check bodies_inferred patterns_bindings;
+      
       (* Compute the return environment *)
-      let return_env = Env.nothing in
-      (* Compute return modality *)
-      let return_mod = Strict in
+      let return_env = 
+        (* Compute the end environent of each body without the bindings *)
+        let return_body_env = List.map2 Env.purges bodies_envs patterns_bindings in
+        (* Intersect all of them *)
+        List.fold_left Env.inter (List.hd return_body_env) (List.tl return_body_env)          
+      in
+      (* Compute return modality ; it is i \/ j_0 \/ j_1 \/ ... *)
+      let return_mod = List.fold_left slackest scrutinee_mod bodies_mods in
         
       (* Save return_type metadata *)
       metadata := Some body_ty;
@@ -315,7 +349,7 @@ and pattern
         Typefail.bound xenv loc x;
       (* Check if type is top *)
       if Types.equal ty TyTop 
-      then failwith "No top in context !"
+      then Typefail.no_bind_top xenv loc "appear in a pattern"
       else Bindings.singleton (x, ty)   (* Bind variable, strict *)
 
     (* !x *)
@@ -379,8 +413,7 @@ and pattern
           (sprintf "with, with %d fields" (left + right + 1))
           (sprintf "%d" (num_fields + 1));
       (* Force get subpattern type *)
-      let sty = 
-        match sty with Some t -> t | None -> assert false in 
+      let sty = Option.get sty in  
       (* Check subpattern *)
       pattern p xenv lenv loc pat sty
 
@@ -413,7 +446,8 @@ and pattern
           in get_osubty (List.length left) ty
         in 
         (* Check if there is one. *)
-        match osubty with
+        Option.get osubty
+        (* match osubty with
           (* Arity mismatch *) 
           | None -> assert false
               (* Check number : need just to have < arity *)
@@ -423,7 +457,7 @@ and pattern
                 (sprintf "plus, with %d fields" got_num)
                 (sprintf "%d" expected_num) *)
           (* Get type *)
-          | Some subty -> subty
+          | Some subty -> subty *)
       in
       (* Recompose expected type of pattern *)
       let expected_ty = 
@@ -469,16 +503,19 @@ and pattern
     (* p *)
     | PatLoc (loc, pat) -> pattern p xenv lenv loc pat ty
 
-and covering q ps =
+(* Returns true iff the pattern [q] covers patterns [ps] *)
+(* and covering q ps =
   match q, ps with 
     (* Not exhaustive *)
     | _, [] -> false
 
     (* Base cases *)
-    | PatOne, [PatOne]              (*  * covering { * } *)
+    | PatVar _, [PatOne]            (*  x covering { * } *)
     | PatVar _, [PatVar _]          (*  x covering { y } *)
-    | PatWildcard, [PatWildcard]    (*  _ covering { _ } *)
+    | PatVar _, [PatWildcard]       (*  x covering { _ } *)
         -> true
+
+        
 
     (* Obvious case *)
     | PatBang q', PatBang p'::ps -> covering q' [p'] && covering q ps
@@ -491,11 +528,12 @@ and covering q ps =
     (* q covering { p : A, ... } := q covering { p, ... } *)
     | q, PatTyAnnot(p, _)::ps -> covering q (p::ps)
 
-    | _ -> failwith ""
+    | _ -> failwith "" *)
   
-and exhaustive (patterns: pattern list) = 
+and exhaustive (_patterns: pattern list) = 
   (* Check if covering *)
-  covering (PatVar (fresh ())) patterns
+  (* covering (PatVar (fresh ())) patterns *)
+  let _x = fresh () in ()
 
 (* ------------------------------------------------------------------------------- *)
 (* Typechecking a program *)

@@ -4,4 +4,5 @@
  (deps    identifier.mll)
  (action  (run ocamllex -o %{targets} %{deps})))
 (library
-  (name utils))
+  (name utils)
+  (libraries ANSITerminal))

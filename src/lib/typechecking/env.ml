@@ -136,6 +136,12 @@ let compose envl enve : env =
     envl
     enve
 
+(** [of_bindings b] returns a new environment containing the linear bindings of [b] *)
+let of_bindings bindings : linenv = 
+  (* Make env *)
+  linearize (binds empty bindings)
+
+
 (* ------------------------------------------------------------------------------- *)
 (* Multiset operations *)
 
@@ -212,6 +218,23 @@ let difference env env' : linenv =
     env
     env'
 
+(** [inter lenv lenv'] returns the intersection of the environments*)
+let inter env env' : linenv = 
+  AtomMap.merge 
+    (fun _ b1 b2 -> 
+      match b1, b2 with
+        (* Dead/not found on both sides *)
+        | None, None
+        (* Binding in only one env *)
+        | Some _, None  
+        | None, Some _ -> None 
+        (* Binding found in both ; select minimum *)
+        | Some (t, m), Some (t', m') when Types.equal t t' -> Some (t, min m m')
+        (* Else, not a subset *)
+        | _ -> failwith "Not compatible")
+    env
+    env'
+
 (** [split env x] returns two environments.
     The second one containing just the binding for [x] (or is empty if [x] is not in [env]),
     the other containing the rest of [env] *)
@@ -237,6 +260,10 @@ let merge env env' =
 (** [purge env x] removes x from the environment altogether *)
 let purge env x = 
   AtomMap.remove x env
+
+(** [purges env b] removes all the bindings [b] from the environment altogether *)
+let purges env b = 
+  Bindings.fold (fun (x, _) env -> AtomMap.remove x env) b env
 
 (* ------------------------------------------------------------------------------- *)
 (* Selection *)
