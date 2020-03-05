@@ -21,7 +21,7 @@ let read filename : Syntax.program =
 let process filename = 
   filename
   |> read
-  |> (fun p -> print_string (Syntax.show_program p); p)
+  (* |> (fun p -> print_string (Syntax.show_program p); p) *)
   |> Parsing.Internalizer.program
   (* |> (fun p -> print_string (Lang.Terms.show_pre_program p); p) *)
   |> Typechecker.run
