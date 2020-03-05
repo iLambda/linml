@@ -7,6 +7,10 @@ open Utils
 
 (* ------------------------------------------------------------------------------- *)
 (* Helpers *)
+exception NoInfer of (unit -> unit)
+
+(* ------------------------------------------------------------------------------- *)
+(* Helpers *)
 
 (* Locate the term *)
 let locate default = 
@@ -139,6 +143,13 @@ let rec infer
           (* Return types *)
           TyBang ty, (lenv, Strict)
       end
+
+    (* refute with t *)
+    | TeZero _ -> 
+        (* Cannot infer type of a non annotated zero-elim. *)       
+        (* This kind of value can only be checked, hence surrounded 
+           by a type annotation *)
+        raise (NoInfer (fun () -> Typefail.cant_infer_refute xenv loc))
         
     (* (x : A) -o t *)
     | TeLinAbs (x, dom, t) -> 
@@ -235,15 +246,31 @@ let rec infer
         | Some ty -> ty
         (* Infer from first available clause *)
         | None -> 
-            (* Helper to infer type from body *)
-            let infer_from_branch env (Clause (_, body)) = infer p xenv env loc body in
-            (* Get the first one *)
-            let inferred_ty, _ = 
-              infer_from_branch 
-                (List.hd patterns_envs) 
-                (List.hd clauses) in 
-            (* Return *)
-            inferred_ty
+          (* Helper to infer type from body *)
+          let infer_from_branch oty env (Clause (_, body)) = 
+            (* If type already found, just pass *)
+            if Option.is_some oty then oty
+            (* Not found ; try to infer *)
+            else 
+              (* Try to infer *)
+              begin 
+                try 
+                  (* Infer *)
+                  let ty, _ = infer p xenv env loc body in 
+                  (* Return inferred type *)
+                  Some ty
+                (* Couldn't infer ; try next one *)
+                with NoInfer _ -> None 
+              end 
+          in             
+          (* Try get the first one can be inferred *)
+          let inferred_oty = List.fold_left2 infer_from_branch None patterns_envs clauses in
+          (* Check if inferrence worked *)
+          match inferred_oty with 
+            (* Couldn't infer. Error *)
+            | None -> raise (NoInfer (fun () -> Typefail.cant_infer_match xenv loc))
+            (* Inferrence was successful. Return *)
+            | Some ty -> ty
       in
       (* Evaluate all bodies *)
       let body_checker env body = check p xenv env loc body body_ty in
@@ -298,6 +325,16 @@ and check
                                     the modality of the output *)
   
   match term with
+    (* refute with t *)
+    | TeLoc (loc, TeZero (t, info)) -> 
+      (* Evaluate t, and check it is zero *)
+      let zero_lenv, _ = check p xenv env loc t TyZero in
+      (* Set metadata *)
+      info := Some expected;
+      (* Check is always successfull, since zero is polymorphic *)
+      zero_lenv, Slack
+
+    (* Usual term *)
     | TeLoc (loc, term) ->
         (* Infer type from expression *)
         let inferred, (env, m) = infer p xenv env loc term in
@@ -309,6 +346,7 @@ and check
           Typefail.mismatch xenv loc expected inferred;
           (* Return modified env *)
           env, m
+
     | _ ->
       (* out of luck! We run in degraded mode, location will be wrong! *)
         let dummy_loc = (Lexing.dummy_pos, Lexing.dummy_pos) in
@@ -547,12 +585,22 @@ let run (Program (term) as p : pre_program) =
   (* let xenv = AtomMap.fold (fun tc _ xenv -> Export.bind xenv tc) tctable xenv in
   let xenv = AtomMap.fold (fun dc _ xenv -> Export.bind xenv dc) dctable xenv in *)
   (* Infer type *)
-  let ty, (env, _) = infer p xenv (Env.empty) loc term in
+  let ty, (env, _) = 
+    begin try infer p xenv (Env.empty) loc term
+    with 
+      | NoInfer handler -> 
+          (* Call handler *)
+          handler (); 
+          (* Exit (will be done by handler, usually) *)
+          exit 1
+    end in
   (* Subproperty formula ensures us context is empty *)
   assert (Env.is_empty env);
   (* Return env *)
   xenv, ty
 
+(* ------------------------------------------------------------------------------- *)
+(* Metadata *)
 (* let type_of (term: fterm) = match term with 
   (* Constants *)
   | TeConst (TeOne) -> TyOne

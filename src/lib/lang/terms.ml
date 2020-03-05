@@ -61,6 +61,10 @@ type ('a, 'b, 'c) _fterm =
   (* t! *)
   | TeBang of 
       ('a, 'b, 'c) _fterm
+  (* refute with t *)
+  | TeZero of 
+      ('a, 'b, 'c) _fterm *   (* Proof of 0 *)
+      'a                      (* Refuted type *)
   (*
    *  APPLICATIONS
    *)

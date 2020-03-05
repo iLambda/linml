@@ -33,7 +33,7 @@
         },
         {
           "name": "keyword.control.linml",
-          "match": "\\b(give|in|fun|match|with|return|end|either)\\b"
+          "match": "\\b(give|in|fun|match|with|return|end|either|refute)\\b"
         }
       ]
     },

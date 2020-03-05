@@ -50,14 +50,19 @@
  *)
 %token EOF
 
-(* Identifier & tag *)
+(* Identifier, tags and operator*)
 %token <string * Lexing.position * Lexing.position> IDENTIFIER TAG
+/* %token <string * Lexing.position * Lexing.position> IDENTIFIER_PREFIX 
+%token <string * Lexing.position * Lexing.position> 
+  IDENTIFIER_OP0 IDENTIFIER_OP1 IDENTIFIER_OP2 
+  IDENTIFIER_OP3 IDENTIFIER_OP4 */
 (* Literals *)
 %token <Syntax.integer * string> INTEGER
 (* Keywords *)
 %token (*KEYWORD_LET*) KEYWORD_GIVE KEYWORD_IN
 %token KEYWORD_FUN
 %token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
+%token KEYWORD_ZERO
 (* Operators *)
 %token OPERATOR_FATARROW OPERATOR_LOLLIPOP 
 %token OPERATOR_INJECT OPERATOR_EXTRACT
@@ -80,7 +85,6 @@
 %right OPERATOR_LOLLIPOP PUNCTUATION_RANGLE
 %right PUNCTUATION_PLUS
 %right PUNCTUATION_STAR PUNCTUATION_AND PUNCTUATION_MINUS
-%nonassoc OPERATOR_EXTRACT
 %nonassoc PUNCTUATION_BANG
 %%
 
@@ -97,10 +101,28 @@ locp(p):
   | p = p
     { SynPatLoc (($startpos, $endpos), p) }
 
+(* Custom operators *)
+/* operator_prefix: id = IDENTIFIER_PREFIX { Identifier.mak term_sort id }
+operator_infix_0: id = IDENTIFIER_OP0 { Identifier.mak term_sort id }
+operator_infix_1: id = IDENTIFIER_OP1 { Identifier.mak term_sort id }
+operator_infix_2: id = IDENTIFIER_OP2 { Identifier.mak term_sort id }
+operator_infix_3: id = IDENTIFIER_OP3 { Identifier.mak term_sort id }
+operator_infix_4: id = IDENTIFIER_OP4 { Identifier.mak term_sort id }
+
+operator_id: 
+  | id = operator_prefix  { id }
+  | id = operator_infix_0 { id }
+  | id = operator_infix_1 { id }
+  | id = operator_infix_2 { id }
+  | id = operator_infix_3 { id }
+  | id = operator_infix_4 { id } */
+
 (* Identifiers *)
 term_variable:
   | id = IDENTIFIER
     { Identifier.mak term_sort id }
+  /* | PUNCTUATION_LPAREN id=operator_id PUNCTUATION_RPAREN
+    { id } */
 
 (* Arguments *)
 term_argument:
@@ -187,26 +209,31 @@ alt_pair_pattern:
     a=loption(preceded(PUNCTUATION_COMMA, separated_nonempty_list(PUNCTUATION_COMMA, PUNCTUATION_MINUS)))
   { (List.length b), p, (List.length a) }
 
-pattern0:
+pattern1:
   (* * *)
   | PUNCTUATION_STAR { SynPatOne }
   (* _ *)
   | PUNCTUATION_UNDERSCORE { SynPatWildcard }
   (* x *)
   | x=term_variable { SynPatVar x }
+  (* !p *)
+  | PUNCTUATION_BANG p=pattern1 { SynPatBang p }
   (* (p : t) *)
   | PUNCTUATION_LPAREN p=locp(pattern) PUNCTUATION_COLON t=typ PUNCTUATION_RPAREN 
     { SynPatTyAnnot (p, t) }
-  (* !p *)
-  | PUNCTUATION_BANG p=pattern0 { SynPatBang p }
+  (* (p) *)
+  | PUNCTUATION_LPAREN p=locp(pattern) PUNCTUATION_RPAREN { p }
   (* <-,-,p,-> *)
   | PUNCTUATION_LANGLE ps=alt_pair_pattern PUNCTUATION_RANGLE
     { let b,p,a = ps in SynPatAltPair (b,p,a)  }
+
+
+pattern0:
+  (* p *)
+  | p=pattern1 { p }
   (* p <: A + _ + A *)
-  | p=locp(pattern0) OPERATOR_EXTRACT inj=injection
+  | p=locp(pattern1) OPERATOR_EXTRACT inj=injection
     { SynPatUnion (p, inj) }
-  (* (p) *)
-  | PUNCTUATION_LPAREN p=locp(pattern) PUNCTUATION_RPAREN { p }
 
 pattern:
   (* p *)
@@ -231,6 +258,9 @@ constants:
   | PUNCTUATION_STAR { SynTeOne }
   (* Additive unit *)
   | PUNCTUATION_LANGLE PUNCTUATION_RANGLE { SynTeTop } 
+
+/* termOp:  */
+  (* t OPERATOR u *)
 
 term0: 
   (* Constant *)
@@ -290,6 +320,9 @@ term:
         (* Multiple clauses *)
         | t::ts -> accumulate_nonempty (fun t a -> SynTeAltPair(t, a)) (t::ts)
     }
+  (* refute T with t *)
+  | KEYWORD_ZERO ty=option(typ) KEYWORD_WITH t=loc(term)
+    { optional_ty_annot (SynTeZero t) ty }
   (* x :> A + _ *)
   | t=loc(term1) OPERATOR_INJECT inj=injection
     { inject inj t }

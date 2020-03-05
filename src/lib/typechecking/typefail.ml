@@ -83,6 +83,16 @@ let no_discard_linear xenv loc ty =
     (print_type xenv ty)
   )
 
+let cant_infer_refute _xenv loc = 
+  Error.error [loc] (sprintf
+    "Couldn't infer type of refutation. Use 'refute [type] with [term]' instead.\n"
+  )
+
+let cant_infer_match _xenv loc = 
+  Error.error [loc] (sprintf
+    "Couldn't infer return type of match. Use 'match [term] return [type] with' instead, or add type annotations to some clause.\n"
+  )
+
 let mismatch xenv loc expected inferred =
   Error.error [loc] (sprintf
     "Type mismatch.\nExpected: %s\nInferred: %s\n"

@@ -22,7 +22,7 @@ repository:
         match: '\b([[:upper:]])[:alpha:]+\b'
 
       - name: 'keyword.control.linml'
-        match: '\b(give|in|fun|match|with|return|end|either)\b'
+        match: '\b(give|in|fun|match|with|return|end|either|refute)\b'
         
   strings:
     name: string.quoted.double.linml

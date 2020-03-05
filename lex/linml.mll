@@ -30,6 +30,7 @@
     "return", KEYWORD_RETURN;
     "end", KEYWORD_END;
     "either", KEYWORD_EITHER;
+    "refute", KEYWORD_ZERO;
   ]
   (* Try to convert a string to a keyword *)
   let keyword_of_string str = List.assoc str keywords
@@ -63,6 +64,16 @@ let char_upper = ['A'-'Z' '\192'-'\214' '\216'-'\222']
 let char_all = ['A'-'Z' 'a'-'z' '_' '\192'-'\214' '\216'-'\246' '\248'-'\255' '\'' '0'-'9']
 let identifier = char_nounder_lower | (char_lower char_all+)
 let tag = char_upper char_all*
+
+(* Operators *)
+
+(* let operator_char = ['!' '$' '&' '*' '#' '+' '-' '.' '/' ':'  '=' '?' '@' '^' '|' '~' ]
+let operator_prefix = (['!'] operator_char +) | (['?' '~' '#'] operator_char* )
+let operator_lv0 = (['=' '|' '&' '<' '>'] operator_char+) | (['$'] operator_char* ) 
+let operator_lv1 = (['@' '^'] operator_char* ) 
+let operator_lv2 = (['-'] operator_char+ ) | (['+'] operator_char+) 
+let operator_lv3 = (['/' '%'] operator_char* ) | (['*'] operator_char+)
+let operator_lv4 = ("**") operator_char*   *)
 
 (* 
  *  RULES
@@ -113,6 +124,14 @@ rule main = parse
   | ':'             { PUNCTUATION_COLON }
   | ','             { PUNCTUATION_COMMA }
   | '='             { PUNCTUATION_EQUAL }
+
+  (* Infix&prefix identifiers *)
+  (* | operator_lv4 as id { IDENTIFIER_OP4 (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) }
+  | operator_lv3 as id { IDENTIFIER_OP3 (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) } 
+  | operator_lv2 as id { IDENTIFIER_OP2 (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) }
+  | operator_lv1 as id { IDENTIFIER_OP1 (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) }
+  | operator_lv0 as id { IDENTIFIER_OP0 (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) }
+  | operator_prefix as id { IDENTIFIER_PREFIX (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) } *)
 
   (* Error *)
   | eof             { EOF }

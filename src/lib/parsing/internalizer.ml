@@ -77,6 +77,8 @@ let rec iterm tctable env = function
   | SynTeUnionRight (ty, t) -> TeUnionRight (itype tctable env ty, iterm tctable env t)
   (* t! *)
   | SynTeBang t -> TeBang (iterm tctable env t)
+  (* refute T with t *)
+  | SynTeZero t -> TeZero (iterm tctable env t, reset ())
   (*
    *  APPLICATIONS
    *)

@@ -50,6 +50,8 @@ and fterm =
   | SynTeUnionRight of ftype * fterm
   (* t! *)
   | SynTeBang of fterm
+  (* refute with t *)
+  | SynTeZero of fterm
   (*
    *  APPLICATIONS
    *)
