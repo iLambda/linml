@@ -37,7 +37,9 @@
       | [], Some after_ty -> SynTeUnionLeft (t, after_ty) 
       | ty::tl, _ -> SynTeUnionRight (ty, inject (tl, after_oty) t)
 
-  (* Make the pattern to extract an injection *)
+  (* Make a forall *)
+  let forall tvars t =
+    List.fold_right (fun tv ty -> SynTyForall (tv, ty)) tvars t
 
   (* Make an abstraction *)
   let linear_abs arguments t = 
@@ -60,9 +62,9 @@
 %token <Syntax.integer * string> INTEGER
 (* Keywords *)
 %token (*KEYWORD_LET*) KEYWORD_GIVE KEYWORD_IN
-%token KEYWORD_FUN
-%token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
 %token KEYWORD_ZERO
+%token KEYWORD_FUN KEYWORD_FORALL
+%token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
 (* Operators *)
 %token OPERATOR_FATARROW OPERATOR_LOLLIPOP 
 %token OPERATOR_INJECT OPERATOR_EXTRACT
@@ -73,7 +75,7 @@
 %token (*PUNCTUATION_SEMICOLON*) PUNCTUATION_COLON PUNCTUATION_MINUS
 %token PUNCTUATION_BAR 
 %token PUNCTUATION_BANG
-%token PUNCTUATION_COMMA 
+%token PUNCTUATION_COMMA PUNCTUATION_DOT
 %token PUNCTUATION_EQUAL PUNCTUATION_UNDERSCORE
 (* Entry point *)
 %start<Syntax.program> program
@@ -82,9 +84,8 @@
 (*
  * PRIORITY RULES
  *)
-%right OPERATOR_LOLLIPOP PUNCTUATION_RANGLE
 %right PUNCTUATION_PLUS
-%right PUNCTUATION_STAR PUNCTUATION_AND PUNCTUATION_MINUS
+%right PUNCTUATION_STAR PUNCTUATION_AND 
 %nonassoc PUNCTUATION_BANG
 %%
 
@@ -123,6 +124,10 @@ term_variable:
     { Identifier.mak term_sort id }
   /* | PUNCTUATION_LPAREN id=operator_id PUNCTUATION_RPAREN
     { id } */
+
+type_variable:
+  | id = IDENTIFIER
+    { Identifier.mak type_sort id }
 
 (* Arguments *)
 term_argument:
@@ -173,12 +178,17 @@ typ1:
 
 typ:  
   (* A -o B *)
-  | ty1=typ OPERATOR_LOLLIPOP ty2=typ { SynTyLollipop (ty1, ty2) }
+  | ty1=typ1 OPERATOR_LOLLIPOP ty2=typ
+    { SynTyLollipop (ty1, ty2) }
   (* A -> B *)
-  | ty1=typ /*OPERATOR_ARROW*/ PUNCTUATION_MINUS PUNCTUATION_RANGLE ty2=typ 
+  | ty1=typ1 PUNCTUATION_MINUS PUNCTUATION_RANGLE ty2=typ 
     { SynTyArrow (ty1, ty2) }
+  (* forall A. B *)
+  | KEYWORD_FORALL tvars=type_variable+ PUNCTUATION_DOT ty=typ
+    { forall tvars ty }
   (* t *)
-  | ty=typ1 { ty }
+  | ty=typ1 
+    { ty }
 
 (* Injection context *)
 injection:

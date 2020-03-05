@@ -21,6 +21,8 @@ type ftype =
   | SynTyArrow of ftype * ftype
   (* A! *)
   | SynTyBang of ftype
+  (* forall a. A *)
+  | SynTyForall of identifier * ftype
 
 and constant = 
   (* Mul unit *)

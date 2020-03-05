@@ -41,6 +41,10 @@ let rec itype tctable env : Syntax.ftype -> Types.ftype = function
   | SynTyLollipop (ty, ty') -> TyLollipop (itype tctable env ty, itype tctable env ty')
   | SynTyArrow (ty, ty') -> TyArrow (itype tctable env ty, itype tctable env ty')
   | SynTyBang (ty) -> TyBang (itype tctable env ty)
+  | SynTyForall (a, body) -> 
+      let a, env = bind env a in 
+      TyForall (Types.abstract a (itype tctable env body))
+
   (* Type free variables / type constructors *)
   | SynTyVarOrTyCon (id, []) when Import.resolves env type_sort id ->
   (* | SynTyVarOrTyCon (id, []) when Import.resolves env type_sort id -> *)
