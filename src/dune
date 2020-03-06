@@ -1,8 +1,8 @@
 (include_subdirs no)
 (executable
-  (name main)
-  (modules main)
-  (libraries lang parsing typechecking utils))
+  (name llbuild)
+  (modules llbuild)
+  (libraries lang parsing typechecking utils cmdliner))
 
 (executable
   (name lltop)
