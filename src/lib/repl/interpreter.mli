@@ -17,4 +17,4 @@ val default : state
 (* Actions *)
 
 (** [eval state input] evaluates [input], and then returns a new state *)
-val eval : state -> string -> state * string
+val eval : state -> string -> (state * string) Lwt.t
