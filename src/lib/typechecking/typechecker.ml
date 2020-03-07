@@ -123,26 +123,31 @@ let rec infer
       TyPlus (ty1, ty2), (lenv2, mod2)
 
     (* t! *)
-    | TeBang t -> 
+    | TeBang (t, metadata) -> 
       (* Linearize environment *)
       let lenv = Env.linearize env in
       (* Infer type of t with empty linear bindings *)
       let ty, (lenv', _) = infer p xenv env loc t in
       (* Check output type *)
-      begin match ty with 
-        (* Banged. Just return *)
-        | TyBang ty -> ty, (lenv, Strict)
-        (* Not banged. Type *)
-        | _ -> 
-          (* Check if linear environment has been untouched *)
-          if not (Env.equal lenv lenv') then begin 
-            (* Pick a linear variable that was manipulated and throw an error *)
-            let x, _ = Env.pick (Env.difference lenv lenv') in
-            Typefail.no_linear xenv loc "banged term" x
-          end;
-          (* Return types *)
-          TyBang ty, (lenv, Strict)
-      end
+      let output_ty = 
+        match ty with 
+          (* Banged. Just return *)
+          | TyBang ty -> ty
+          (* Not banged. Type *)
+          | _ -> 
+            (* Check if linear environment has been untouched *)
+            if not (Env.equal lenv lenv') then begin 
+              (* Pick a linear variable that was manipulated and throw an error *)
+              let x, _ = Env.pick (Env.difference lenv lenv') in
+              Typefail.no_linear xenv loc "banged term" x
+            end;
+            (* Return types *)
+            TyBang ty
+        in
+      (* Save metadata *)
+      metadata := Some output_ty;
+      (* Return type and environmnet *)
+      output_ty, (lenv, Strict)
 
     (* refute with t *)
     | TeZero _ -> 
@@ -601,11 +606,25 @@ let run (Program (term) as p : pre_program) =
 
 (* ------------------------------------------------------------------------------- *)
 (* Metadata *)
-(* let type_of (term: fterm) = match term with 
+let rec type_of (term: fterm) = match term with 
   (* Constants *)
   | TeConst (TeOne) -> TyOne
   | TeConst (TeTop) -> TyTop 
   (* Variable *)
   | TeVar (_, ty) -> ty
-
-  | _ -> failwith "" *)
+  (* Constructs *)
+  | TeSimPair (t, t') -> TyTensor (type_of t, type_of t')
+  | TeAltPair (t, t') -> TyWith (type_of t, type_of t')
+  | TeUnionLeft (t, ty) -> TyPlus (type_of t, ty)
+  | TeUnionRight (ty, t) -> TyPlus (ty, type_of t)
+  | TeBang (_, ty) -> ty
+  | TeZero (_, ty) -> ty
+  (* Applications *)
+  | TeLinAbs (_, dom, body) -> TyLollipop (dom, type_of body)
+  | TeApp (_, _, metadata) -> metadata.codomain
+  | TeGive (_, _, body) -> type_of body
+  (* Destructors *)
+  | TeMatch (_, _, _, ty) -> ty
+  (* Annotations *)
+  | TeTyAnnot (_, ty) -> ty
+  | TeLoc (_, t) -> type_of t

@@ -60,7 +60,8 @@ type ('a, 'b, 'c) _fterm =
       ('a, 'b, 'c) _fterm     (* Term *) 
   (* t! *)
   | TeBang of 
-      ('a, 'b, 'c) _fterm
+      ('a, 'b, 'c) _fterm *   (* Term *)
+      'a                      (* Type of bang *)
   (* refute with t *)
   | TeZero of 
       ('a, 'b, 'c) _fterm *   (* Proof of 0 *)

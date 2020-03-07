@@ -23,4 +23,4 @@ val run: pre_program -> Export.env * ftype
    produced by the typechecker to return the type of any given
    petrified term. *)
 
-(* val type_of: fterm -> ftype *)
+val type_of: fterm -> ftype
