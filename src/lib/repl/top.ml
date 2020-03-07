@@ -26,22 +26,32 @@ end
 (* Main loop *)
 
 let rec loop term history state =
-  Lwt.catch (fun () ->
-    let rl = new read_line ~term ~history:(LTerm_history.contents history) ~state in
-    rl#run >|= fun command -> Some command)
-    (function
-      | Sys.Break -> return None
-      | exn -> Lwt.fail exn)
-  >>= function
-  | Some command ->
-    let command_utf8= Zed_string.to_utf8 command in
-    let state, out = Interpreter.eval state command_utf8 in
-    LTerm.fprintls term (Ui.make_output term state out)
-    >>= fun () ->
-    LTerm_history.add history command;
-    loop term history state
-  | None ->
-    loop term history state
+  (* Try get a command *)
+  let* cmd =
+    (* Catch errors *)
+    Lwt.catch 
+      (* Body *)
+      (fun () ->
+        let rl = new read_line ~term ~history:(LTerm_history.contents history) ~state in
+        rl#run >|= fun command -> Some command)
+      (* Error *)
+      (function
+        | Sys.Break -> return None
+        | exn -> Lwt.fail exn) 
+  in
+  (* Check returned command *) 
+  match cmd with 
+    (* A command was found *)
+    | Some command ->
+      let command_utf8= Zed_string.to_utf8 command in
+      let* state, out = Interpreter.eval state command_utf8 in
+      let txt = Ui.make_output term state out in
+      let* () = LTerm.fprintls term txt in
+      LTerm_history.add history command;
+      loop term history state
+    (* No command *)
+    | None ->
+      loop term history state
 
 (* ------------------------------------------------------------------------------- *)
 (* Entry point *)
