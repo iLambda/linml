@@ -158,7 +158,9 @@ let rec infer
         raise (NoInfer (fun () -> Typefail.cant_infer_refute xenv loc))
         
     (* (x : A) -o t *)
-    | TeLinAbs (x, dom, t) -> 
+      | TeLinAbs (x, dom, t) -> 
+      (* Introduct type argument into export env *)
+      let xenv = Export.bind xenv x in 
       (* Split the environment over x *)
       let clear_lenv, leftover_lenv = Env.split (Env.linearize env) x in
       (* Bind x to evaluate body *)
@@ -202,7 +204,7 @@ let rec infer
     (* forall [A] -> t *)
     | TeTyAbs (x, t) -> 
       (* Introduct type argument into export env *)
-      let xenv = Export.bind xenv x in 
+      let xenv = Export.bind xenv x in  
       (* Infer type of body *)
       let body_ty, (body_lenv, body_mod) = infer p xenv env loc t in
       (* Make type context and return *)
