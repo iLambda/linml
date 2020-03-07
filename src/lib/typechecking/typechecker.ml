@@ -652,6 +652,8 @@ let rec type_of (term: fterm) = match term with
   (* Applications *)
   | TeLinAbs (_, dom, body) -> TyLollipop (dom, type_of body)
   | TeApp (_, _, metadata) -> metadata.codomain
+  | TeTyApp (_, t, info) -> fill info.context t
+  | TeTyAbs (a, term) -> TyForall (abstract a (type_of term))
   | TeGive (_, _, body) -> type_of body
   (* Destructors *)
   | TeMatch (_, _, _, ty) -> ty
