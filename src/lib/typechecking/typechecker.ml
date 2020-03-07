@@ -158,7 +158,7 @@ let rec infer
         raise (NoInfer (fun () -> Typefail.cant_infer_refute xenv loc))
         
     (* (x : A) -o t *)
-      | TeLinAbs (x, dom, t) -> 
+    | TeLinAbs (x, dom, t) -> 
       (* Introduct type argument into export env *)
       let xenv = Export.bind xenv x in 
       (* Split the environment over x *)
