@@ -1,6 +1,5 @@
 open React
 open Lwt
-open LTerm_key
 (* open LTerm_widget *)
 
 let ( let* ) = Lwt.bind 
@@ -20,7 +19,7 @@ class read_line ~term ~history ~state = object(self)
   method! show_box = false
 
   initializer
-    self#set_prompt (S.const (Ui.make_prompt term state));
+    self#set_prompt (S.const (Ui.make_prompt term state))
 end
 
 (* ------------------------------------------------------------------------------- *)
@@ -60,7 +59,6 @@ let rec loop term history state =
 let run () =
   (* Load key bindings *)
   let* () = LTerm_inputrc.load () in 
-  (* TODO : enter is newl *)
   (* Run while catching errors *)
   Lwt.catch 
     (* To run *)

@@ -159,8 +159,6 @@ let rec infer
         
     (* (x : A) -o t *)
     | TeLinAbs (x, dom, t) -> 
-      (* Introduct type argument into export env *)
-      let xenv = Export.bind xenv x in 
       (* Split the environment over x *)
       let clear_lenv, leftover_lenv = Env.split (Env.linearize env) x in
       (* Bind x to evaluate body *)
