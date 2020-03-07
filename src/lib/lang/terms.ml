@@ -59,13 +59,14 @@ type ('a, 'b, 'c, 'd) _fterm =
   (* t | t' *)
   | TeUnionLeft of 
       ('a, 'b, 'c, 'd) _fterm *   (* Term *)
-      ftype                   (* Injected type *)
+      ftype                       (* Injected type *)
   | TeUnionRight of 
-      ftype *                 (* Injected type *)
+      ftype *                     (* Injected type *)
       ('a, 'b, 'c, 'd) _fterm     (* Term *) 
   (* t! *)
   | TeBang of 
-      ('a, 'b, 'c, 'd) _fterm
+      ('a, 'b, 'c, 'd) _fterm *
+      'a                      (* Type of bang *)
   (* refute with t *)
   | TeZero of 
       ('a, 'b, 'c, 'd) _fterm *   (* Proof of 0 *)
