@@ -6,7 +6,7 @@ open Printf
 open Utils
 
 (* ------------------------------------------------------------------------------- *)
-(* Helpers *)
+(* Exceptions *)
 exception NoInfer of (unit -> unit)
 
 (* ------------------------------------------------------------------------------- *)
@@ -29,6 +29,12 @@ let destruct_lollipop xenv loc = function
 
 (* Make a fresh identifier *)
 let fresh () = Atom.fresh (Identifier.mk "x" Sort.term_sort)
+
+(* Deconstruct a quantified type *)
+let deconstruct_univ xenv loc =
+  function 
+    | TyForall ctx -> ctx
+    | ty -> Typefail.expected_form xenv loc "a universal" ty
 
 (* ------------------------------------------------------------------------------- *)
 (* Strictness of judgements *)
@@ -162,6 +168,8 @@ let rec infer
         
     (* (x : A) -o t *)
     | TeLinAbs (x, dom, t) -> 
+      (* Introduct type argument into export env *)
+      let xenv = Export.bind xenv x in 
       (* Split the environment over x *)
       let clear_lenv, leftover_lenv = Env.split (Env.linearize env) x in
       (* Bind x to evaluate body *)
@@ -202,6 +210,26 @@ let rec infer
       (* Return codomain *)
       codom, (lenv2, slackest mod1 mod2)
 
+    (* forall [A] -> t *)
+    | TeTyAbs (x, t) -> 
+      (* Introduct type argument into export env *)
+      let xenv = Export.bind xenv x in  
+      (* Infer type of body *)
+      let body_ty, (body_lenv, body_mod) = infer p xenv env loc t in
+      (* Make type context and return *)
+      TyForall (Types.abstract x body_ty), (body_lenv, body_mod)
+
+    (* t [A] *)
+    | TeTyApp (t, ty, metadata) -> 
+      (* Infer type of body *)
+      let body_ty, (body_lenv, body_mod) = infer p xenv env loc t in
+      (* Get type context *)
+      let ty_ctx = deconstruct_univ xenv loc body_ty in
+      (* Save type context info *)
+      metadata := Some { context = ty_ctx };
+      (* Fill the type substitution and return the produced type *)
+      Types.fill ty_ctx ty, (body_lenv, body_mod)
+
     (* give x = t1 in t2*)
     | TeGive (x, t1, t2) -> 
       (* Infer type of t1 *)
@@ -219,6 +247,8 @@ let rec infer
           (* We bound a top. *)
           | NoBindTop -> Typefail.no_bind_top xenv (locate_atom x) "be bound"
       in
+      (* Extend export env *)
+      let xenv = Export.bind xenv x in
       (* Infer the give's body type *)
       let ty_body, (lenv_body, mod_body) = infer p xenv env1 loc t2 in
       (* If modality is strict and variable has been unused, error *)
@@ -626,6 +656,8 @@ let rec type_of (term: fterm) = match term with
   (* Applications *)
   | TeLinAbs (_, dom, body) -> TyLollipop (dom, type_of body)
   | TeApp (_, _, metadata) -> metadata.codomain
+  | TeTyApp (_, t, info) -> fill info.context t
+  | TeTyAbs (a, term) -> TyForall (abstract a (type_of term))
   | TeGive (_, _, body) -> type_of body
   (* Destructors *)
   | TeMatch (_, _, _, ty) -> ty

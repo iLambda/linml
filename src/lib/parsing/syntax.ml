@@ -21,6 +21,8 @@ type ftype =
   | SynTyArrow of ftype * ftype
   (* A! *)
   | SynTyBang of ftype
+  (* forall a. A *)
+  | SynTyForall of identifier * ftype
 
 and constant = 
   (* Mul unit *)
@@ -59,6 +61,10 @@ and fterm =
   | SynTeLinAbs of identifier * ftype * fterm
   (* t t' *)
   | SynTeApp of fterm * fterm
+  (* forall [A] -> t *)
+  | SynTeTyAbs of identifier * fterm
+  (* t [A] *)
+  | SynTeTyApp of fterm * ftype
   (* give x : A = t *)
   | SynTeGive of identifier * fterm * fterm
   (* 

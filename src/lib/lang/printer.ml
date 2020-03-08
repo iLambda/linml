@@ -14,12 +14,13 @@ let wth = string " & "
 let plus = string " + "
 let tensor = string " * "
 let bang = string "!"
+let forall = string "forall"
+
 
 (* Print an atom *)
-let pvar _env x =
+let pvar env x =
   (* Resolve the atom, get its name, and return it *)
-  string (Identifier.name (Atom.identifier x))
-  (* string (Identifier.name (Export.resolve env x)) *)
+  string (Identifier.name (Export.resolve env x))
 
 (* Types. *)
 
@@ -28,6 +29,8 @@ let pvar _env x =
    levels of priority. *)
 let rec pty0 env ty =
   match ty with
+    (* No print bound var *)
+    | TyBoundVar _ -> assert false
     (* Constants *)
     | TyZero -> zero 
     | TyOne -> one 
@@ -63,9 +66,27 @@ and pty env ty =
           pty1 env domain ^^
           arrow ^^ softline ^^
           pty env codomain
+      (* forall *)
+      | TyForall _ -> pforall env [] ty
       (* t *)
       | _ -> pty1 env ty
   )
+
+and pforall env qs = function
+  | TyForall body ->
+      (* Make a new atom to name the forall bound variable *)
+      let a = Atom.fresh (Types.hint body) in
+      (* Bind it *)
+      let env = Export.bind env a in
+      (* Call recursively *)
+      pforall env (a :: qs) (fill body (TyFreeVar a))
+  | ty ->
+      (* Finally print *)
+      nest 2 (
+        forall ^^
+        concat_map (fun a -> space ^^ pvar env a) (List.rev qs) ^^ dot ^^ line ^^
+        pty env ty
+      )
 
 
 (* The all-purpose buffer *)

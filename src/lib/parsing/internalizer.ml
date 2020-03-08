@@ -41,12 +41,17 @@ let rec itype tctable env : Syntax.ftype -> Types.ftype = function
   | SynTyLollipop (ty, ty') -> TyLollipop (itype tctable env ty, itype tctable env ty')
   | SynTyArrow (ty, ty') -> TyArrow (itype tctable env ty, itype tctable env ty')
   | SynTyBang (ty) -> TyBang (itype tctable env ty)
+  | SynTyForall (a, body) -> 
+      let a, env = bind env a in 
+      TyForall (Types.abstract a (itype tctable env body))
+
   (* Type free variables / type constructors *)
   | SynTyVarOrTyCon (id, []) when Import.resolves env type_sort id ->
   (* | SynTyVarOrTyCon (id, []) when Import.resolves env type_sort id -> *)
       (* if there are no type arguments and if [id] resolves as a type variable [a],
          then consider it is a type variable *)
       let a = Identifier.mak type_sort id in ityvar env a
+      
   | SynTyVarOrTyCon _ -> failwith "No type constructors yet"
 
 and itypeo tctable env = function 
@@ -90,6 +95,13 @@ let rec iterm tctable env = function
     TeLinAbs (x, itype tctable env ty, iterm tctable env t)
   (* t t' *)
   | SynTeApp (t, t') -> TeApp (iterm tctable env t, iterm tctable env t', reset ())
+  (* forall [A] -> t *)
+  | SynTeTyAbs (a, t) -> 
+    (* Shadowing allowed in type abstractions *)
+    let a, env = bind env a in
+    TeTyAbs (a, iterm tctable env t)
+  (* t [A] *)
+  | SynTeTyApp (t, ty) -> TeTyApp (iterm tctable env t, itype tctable env ty, ref None)
   (* give x : A = t *)
   | SynTeGive (x, t, t') -> 
       (* Check if identifier free. No shadowing in give *)
