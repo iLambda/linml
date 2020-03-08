@@ -29,11 +29,11 @@
       "patterns": [
         {
           "name": "constant.language",
-          "match": "\\b([[:upper:]])[:alpha:]+\\b"
+          "match": "\\b([[:upper:]][[:alpha:]]+)\\b"
         },
         {
           "name": "keyword.control.linml",
-          "match": "\\b(give|in|fun|match|with|return|end|either|refute)\\b"
+          "match": "\\b(give|in|fun|match|with|return|end|either|refute|type)\\b"
         }
       ]
     },

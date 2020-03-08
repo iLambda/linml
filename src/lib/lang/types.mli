@@ -4,6 +4,8 @@ open Utils.Atom
 type ftype =   
   (* Constants *)
   | TyOne | TyTop | TyZero
+  (* Type constructor *)
+  | TyCon of atom * ftype list
   (* A *)
   | TyFreeVar of atom
   (* A + B *)

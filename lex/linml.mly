@@ -62,7 +62,8 @@
 %token (*KEYWORD_LET*) KEYWORD_GIVE KEYWORD_IN
 %token KEYWORD_FUN
 %token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
-%token KEYWORD_ZERO
+%token KEYWORD_ZERO 
+%token KEYWORD_TYPE 
 (* Operators *)
 %token OPERATOR_FATARROW OPERATOR_LOLLIPOP 
 %token OPERATOR_INJECT OPERATOR_EXTRACT
@@ -151,19 +152,25 @@ term_arguments:
         | _ -> $syntaxerror }
 
 (* Types *)
-typ0:
+typm1:
   (* Constants *)
   | ty=typconst { ty }
   (* A *)
   | id=IDENTIFIER  { SynTyVarOrTyCon (id, []) }  
+  (* A! *)
+  | PUNCTUATION_BANG ty=typm1 { SynTyBang ty }
   (* (A) *)
   | PUNCTUATION_LPAREN ty=typ PUNCTUATION_RPAREN { ty }
-  (* A! *)
-  | PUNCTUATION_BANG ty=typ0 { SynTyBang ty }
+
+typ0:
+  (* A x x x *)
+  | id=IDENTIFIER tys=typm1+ { SynTyVarOrTyCon (id, tys) }  
   (* A * B *)
   | ty1=typ0 PUNCTUATION_STAR ty2=typ0 { SynTyTensor (ty1, ty2) }
   (* A & B *)
   | ty1=typ0 PUNCTUATION_AND ty2=typ0 { SynTyWith (ty1, ty2) }
+  (* t *)
+  | ty=typm1 { ty }
 
 typ1:
   (* A + B *)
@@ -327,6 +334,10 @@ term:
   | t=loc(term1) OPERATOR_INJECT inj=injection
     { inject inj t }
 
+(* Type declaration *)
+/* type_decl:
+  KEYWORD_TYPE name=IDENTIFIER  */
+  
 
 
 (* Program *)

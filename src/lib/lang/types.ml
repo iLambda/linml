@@ -4,6 +4,7 @@ open Utils.Atom
 (* Types of terms *)
 type ftype =   
   | TyOne | TyTop | TyZero
+  | TyCon of atom * ftype list
   | TyFreeVar of atom
   | TyPlus of ftype * ftype
   | TyTensor of ftype * ftype
@@ -40,6 +41,11 @@ let rec equal ty1 ty2 =
     | TyOne, TyOne -> true
     | TyTop, TyTop -> true
     | TyZero, TyZero -> true
+    (* Type constructors *)
+    | TyCon (x1, tys1), TyCon (x2, tys2) -> 
+        Atom.equal x1 x2
+        && List.compare_lengths tys1 tys2 = 0 
+        && List.for_all2 equal tys1 tys2
     (* Free type variables  *)
     | TyFreeVar a1, TyFreeVar a2 -> Atom.equal a1 a2
     (* Bangs *)
