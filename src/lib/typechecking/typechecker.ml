@@ -17,6 +17,10 @@ let locate default =
   function 
     | TeLoc (loc, _) -> loc
     | _ -> default
+
+(* Locate the term *)
+let locate_atom x = 
+  Identifier.location (Atom.identifier x)
   
 (* Destruct a function type *)
 let destruct_lollipop xenv loc = function 
@@ -176,7 +180,7 @@ let rec infer
           (* Can't happen, since the env is split *)
           | Bound _ -> assert false
           (* We bound a top. *)
-          | NoBindTop -> Typefail.no_bind_top xenv loc "appear as a function parameter"
+          | NoBindTop -> Typefail.no_bind_top xenv (locate_atom x) "appear as a function parameter"
       in
       (* Typecheck the function body *)
       let codom, (lenv2, mod2) = infer p xenv env1 loc t in
@@ -241,7 +245,7 @@ let rec infer
           (* Can't happen, since the env is split *)
           | Bound _ -> assert false
           (* We bound a top. *)
-          | NoBindTop -> Typefail.no_bind_top xenv loc "be bound"
+          | NoBindTop -> Typefail.no_bind_top xenv (locate_atom x) "be bound"
       in
       (* Extend export env *)
       let xenv = Export.bind xenv x in
@@ -422,7 +426,7 @@ and pattern
         Typefail.bound xenv loc x;
       (* Check if type is top *)
       if Types.equal ty TyTop 
-      then Typefail.no_bind_top xenv loc "appear in a pattern"
+      then Typefail.no_bind_top xenv (locate_atom x) "appear in a pattern"
       else Bindings.singleton (x, ty)   (* Bind variable, strict *)
 
     (* !x *)

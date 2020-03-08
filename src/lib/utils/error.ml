@@ -22,8 +22,9 @@ let print_location (pos1, pos2) =
   let char1 = pos1.pos_cnum - pos1.pos_bol in
   let char2 = pos2.pos_cnum - pos1.pos_bol in (* intentionally [pos1.pos_bol] *)
   (* Print as bold *)
-  eprintf [ Bold ]
-   "File \"%s\", line %d, characters %d-%d:\n" file line char1 char2
+  match file with 
+    | "" -> eprintf [ Bold ] "Line %d, characters %d-%d:\n" line char1 char2
+    | _  -> eprintf [ Bold ] "File \"%s\", line %d, characters %d-%d:\n" file line char1 char2
   (* use [char1 + 1] and [char2 + 1] if *not* using Caml mode *)
 
 let signaled =

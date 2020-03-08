@@ -27,6 +27,7 @@ let eval state s =
   let process = Lwt_process.open_process_full cmd in 
   (* Push program in stdout *)
   let* () = Lwt_io.write process#stdin s in
+  let* () = Lwt_io.flush process#stdin in
   let* () = Lwt_io.close process#stdin in
   (* Wait for return status *)
   let* return_code = process#status in
@@ -38,7 +39,8 @@ let eval state s =
     | _ -> process#stderr
   in
   (* Read all from output channel *)
-  let* output = Lwt_io.read output_channel in
+  let stream = Lwt_io.read_chars output_channel in 
+  let* output = Lwt_stream.to_string stream in 
   (* Modify state *)
   let new_state = { n = state.n + 1 } in
   (* Return output *)

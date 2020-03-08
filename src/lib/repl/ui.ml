@@ -47,12 +47,12 @@ let make_prompt term state =
   header ^^ second_line
     
 (** Format the interpreter output for REPL display *)
-let make_output _ _ out =
+let make_output _term _state out =
   (* Start of line *)
   let header = eval [ B_bold true; B_fg red; S "lltop"; B_fg magenta; S " > " ] in
   (* Print output *)
-  let output = eval [ S out ] in
-
+  let output = of_utf8_maybe_invalid out in
+  (* Return *)
   header ^^ output
 
 (** Displays a greeting *)

@@ -12,7 +12,9 @@ open Utils
 let lexbuf filename = 
   (* Get channel *)
   let channel, name = match filename with 
-    | "" -> Stdlib.stdin, "<piped>"
+    (* Read piped data *)
+    | "" -> Stdlib.stdin, ""
+    (* Read file *)
     | filename -> Stdlib.open_in filename, filename
   in
   (* Setup lexbuf *)
