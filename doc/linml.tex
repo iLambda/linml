@@ -108,6 +108,15 @@ The typing rules are the following:
         % rule for top
         \prftree[rule]{\scriptsize ($\top$)} { \Gamma \parallel \Delta \vdash \langle \rangle : \top \Rightarrow \Gamma \rtimes \top }
     \end{tabular} \\[\baselineskip]
+
+    % zero 
+    \begin{tabular}{l}
+        % bang
+        \prftree[rule]{\scriptsize ($0$)} 
+            { \Gamma \parallel \Delta \vdash t : 0 \Rightarrow \Gamma' \rtimes \beta' }
+            { \Gamma \parallel \Delta \vdash \textbf{refute } \tau \textbf{ with } t :  \tau \Rightarrow \Gamma' \rtimes \top }
+    \end{tabular}\\[\baselineskip]
+
     % variable 
     \begin{tabular}{ll}
         % variable
