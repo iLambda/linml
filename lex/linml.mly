@@ -37,11 +37,23 @@
       | [], Some after_ty -> SynTeUnionLeft (t, after_ty) 
       | ty::tl, _ -> SynTeUnionRight (ty, inject (tl, after_oty) t)
 
-  (* Make the pattern to extract an injection *)
+  (* Make a forall *)
+  let forall tvars t =
+    List.fold_right (fun tv ty -> SynTyForall (tv, ty)) tvars t
+
+  (* Make a type abstraction *)
+  let ty_abs tyvars t = 
+    List.fold_right (fun id t -> SynTeTyAbs (id, t)) tyvars t
+    
+  (* Make a type application *)
+  let ty_app t tys = 
+    List.fold_left (fun t ty -> SynTeTyApp (t, ty)) t tys
 
   (* Make an abstraction *)
-  let linear_abs arguments t = 
-    List.fold_right (fun (x, ty) t -> SynTeLinAbs (x, ty, t)) arguments t
+  let linear_abs tyvars arguments t = 
+    ty_abs 
+      tyvars
+      (List.fold_right (fun (x, ty) t -> SynTeLinAbs (x, ty, t)) arguments t)
 
 %}
 
@@ -60,20 +72,21 @@
 %token <Syntax.integer * string> INTEGER
 (* Keywords *)
 %token (*KEYWORD_LET*) KEYWORD_GIVE KEYWORD_IN
-%token KEYWORD_FUN
-%token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
 %token KEYWORD_ZERO
+%token KEYWORD_FUN KEYWORD_FORALL
+%token KEYWORD_MATCH KEYWORD_RETURN KEYWORD_WITH KEYWORD_END KEYWORD_EITHER
 (* Operators *)
 %token OPERATOR_FATARROW OPERATOR_LOLLIPOP 
 %token OPERATOR_INJECT OPERATOR_EXTRACT
 (* Punctuation *)
 %token PUNCTUATION_LPAREN PUNCTUATION_RPAREN 
 %token PUNCTUATION_LANGLE PUNCTUATION_RANGLE  
+%token PUNCTUATION_LBRACKET PUNCTUATION_RBRACKET
 %token PUNCTUATION_STAR PUNCTUATION_AND PUNCTUATION_PLUS
 %token (*PUNCTUATION_SEMICOLON*) PUNCTUATION_COLON PUNCTUATION_MINUS
 %token PUNCTUATION_BAR 
 %token PUNCTUATION_BANG
-%token PUNCTUATION_COMMA 
+%token PUNCTUATION_COMMA PUNCTUATION_DOT
 %token PUNCTUATION_EQUAL PUNCTUATION_UNDERSCORE
 (* Entry point *)
 %start<Syntax.program> program
@@ -82,9 +95,8 @@
 (*
  * PRIORITY RULES
  *)
-%right OPERATOR_LOLLIPOP PUNCTUATION_RANGLE
 %right PUNCTUATION_PLUS
-%right PUNCTUATION_STAR PUNCTUATION_AND PUNCTUATION_MINUS
+%right PUNCTUATION_STAR PUNCTUATION_AND 
 %nonassoc PUNCTUATION_BANG
 %%
 
@@ -124,6 +136,10 @@ term_variable:
   /* | PUNCTUATION_LPAREN id=operator_id PUNCTUATION_RPAREN
     { id } */
 
+type_variable:
+  | id = IDENTIFIER
+    { Identifier.mak type_sort id }
+
 (* Arguments *)
 term_argument:
   (* (x y ... z : A) *)
@@ -131,12 +147,31 @@ term_argument:
     PUNCTUATION_COLON domain=typ
     PUNCTUATION_RPAREN
     { List.map (fun x -> x, domain) xs }
-
+    
 term_arguments:
   (* (x:A) *)
   | a=term_argument { a }
   (* (x:A) ... (x:A) *)
   | a=term_argument args=term_arguments { a @ args }
+
+(* Type arguments *)
+type_formal_argument: 
+  (* [a ... a] *)
+  | PUNCTUATION_LBRACKET xs=type_variable+ PUNCTUATION_RBRACKET
+    { xs }
+
+type_formal_arguments:
+  (* [a ... a] *)
+  | x=type_formal_argument
+    { x }
+  (* [a ... a] [a ... a ]*)
+  | x=type_formal_argument xs=type_formal_arguments 
+    { x @ xs }
+    
+type_actual_argument:
+  (* [A ... A] *)
+  | PUNCTUATION_LBRACKET ty=typ+ PUNCTUATION_RBRACKET
+    { ty }
 
 (* Type constants *)
 %inline typconst:
@@ -173,12 +208,17 @@ typ1:
 
 typ:  
   (* A -o B *)
-  | ty1=typ OPERATOR_LOLLIPOP ty2=typ { SynTyLollipop (ty1, ty2) }
+  | ty1=typ1 OPERATOR_LOLLIPOP ty2=typ
+    { SynTyLollipop (ty1, ty2) }
   (* A -> B *)
-  | ty1=typ /*OPERATOR_ARROW*/ PUNCTUATION_MINUS PUNCTUATION_RANGLE ty2=typ 
+  | ty1=typ1 PUNCTUATION_MINUS PUNCTUATION_RANGLE ty2=typ 
     { SynTyArrow (ty1, ty2) }
+  (* forall A. B *)
+  | KEYWORD_FORALL tvars=type_variable+ PUNCTUATION_DOT ty=typ
+    { forall tvars ty }
   (* t *)
-  | ty=typ1 { ty }
+  | ty=typ1 
+    { ty }
 
 (* Injection context *)
 injection:
@@ -288,6 +328,8 @@ term1:
   | t=term0 { t }
   (* t t' *)
   | t1=loc(term1) t2=loc(term0) { SynTeApp (t1, t2) }
+  (* t [A ... A] ... [A .. A] *)
+  | t=loc(term1) tys=type_actual_argument { ty_app t tys }
 
 term:
   (* t *)
@@ -296,9 +338,12 @@ term:
   | t=loc(term1) PUNCTUATION_COMMA 
     ts=separated_nonempty_list(PUNCTUATION_COMMA, loc(term1))
     { accumulate_nonempty (fun t a -> SynTeSimPair(t, a)) (t::ts)  }
+  (* forall [a...a] -> t *)
+  | KEYWORD_FORALL tyvars=type_formal_arguments PUNCTUATION_MINUS PUNCTUATION_RANGLE body=loc(term)
+    { ty_abs tyvars body }
   (* (x:A) -o t *)
-  | KEYWORD_FUN arguments=term_arguments OPERATOR_LOLLIPOP body=loc(term)
-    { linear_abs arguments body }
+  | KEYWORD_FUN tyvars=loption(type_formal_arguments) arguments=term_arguments OPERATOR_LOLLIPOP body=loc(term)
+    { linear_abs tyvars arguments body }
   (* give x : A = t *)
   | KEYWORD_GIVE p=locp(pattern) codomain=preceded(PUNCTUATION_COLON, typ)?
     PUNCTUATION_EQUAL t1=loc(term) KEYWORD_IN t2=loc(term)

@@ -31,6 +31,7 @@
     "end", KEYWORD_END;
     "either", KEYWORD_EITHER;
     "refute", KEYWORD_ZERO;
+    "forall", KEYWORD_FORALL;
   ]
   (* Try to convert a string to a keyword *)
   let keyword_of_string str = List.assoc str keywords
@@ -114,6 +115,8 @@ rule main = parse
   | '_'             { PUNCTUATION_UNDERSCORE }
   | '('             { PUNCTUATION_LPAREN }
   | ')'             { PUNCTUATION_RPAREN }
+  | '['             { PUNCTUATION_LBRACKET }
+  | ']'             { PUNCTUATION_RBRACKET }
   | '<'             { PUNCTUATION_LANGLE }
   | '>'             { PUNCTUATION_RANGLE }
   | '!'             { PUNCTUATION_BANG }
@@ -124,6 +127,7 @@ rule main = parse
   | ':'             { PUNCTUATION_COLON }
   | ','             { PUNCTUATION_COMMA }
   | '='             { PUNCTUATION_EQUAL }
+  | '.'             { PUNCTUATION_DOT }
 
   (* Infix&prefix identifiers *)
   (* | operator_lv4 as id { IDENTIFIER_OP4 (id, lexeme_start_p lexbuf, lexeme_end_p lexbuf) }

@@ -27,10 +27,15 @@ and application_metadata = {
   bang: bool;
 }
 
+and type_application_metadata = {
+  (* The abstraction context *)
+  context: ftype_context; [@opaque]
+}
+
 [@@deriving show]
 
 (* Terms *)
-type ('a, 'b, 'c) _fterm = 
+type ('a, 'b, 'c, 'd) _fterm = 
   (*
    *  LEAFS
    *)
@@ -45,73 +50,82 @@ type ('a, 'b, 'c) _fterm =
    *)
   (* t, t' *)
   | TeSimPair of 
-      ('a, 'b, 'c) _fterm *   (* Left term *)
-      ('a, 'b, 'c) _fterm     (* Right term *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Left term *)
+      ('a, 'b, 'c, 'd) _fterm     (* Right term *)
   (* <t, t'> *)
   | TeAltPair of 
-      ('a, 'b, 'c) _fterm *   (* Left term *)
-      ('a, 'b, 'c) _fterm     (* Right term *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Left term *)
+      ('a, 'b, 'c, 'd) _fterm     (* Right term *)
   (* t | t' *)
   | TeUnionLeft of 
-      ('a, 'b, 'c) _fterm *   (* Term *)
-      ftype                   (* Injected type *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Term *)
+      ftype                       (* Injected type *)
   | TeUnionRight of 
-      ftype *                 (* Injected type *)
-      ('a, 'b, 'c) _fterm     (* Term *) 
+      ftype *                     (* Injected type *)
+      ('a, 'b, 'c, 'd) _fterm     (* Term *) 
   (* t! *)
   | TeBang of 
-      ('a, 'b, 'c) _fterm *   (* Term *)
+      ('a, 'b, 'c, 'd) _fterm *
       'a                      (* Type of bang *)
   (* refute with t *)
   | TeZero of 
-      ('a, 'b, 'c) _fterm *   (* Proof of 0 *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Proof of 0 *)
       'a                      (* Refuted type *)
   (*
    *  APPLICATIONS
    *)
   (* (x : A) -o t *)
   | TeLinAbs of 
-      atom *                  (* Argument name *)
-      ftype *                 (* Argument type *)
-      ('a, 'b, 'c) _fterm     (* Body *)
+      atom *                    (* Argument name *)
+      ftype *                   (* Argument type *)
+      ('a, 'b, 'c, 'd) _fterm   (* Body *)
   (* t t' *)
   | TeApp of
-      ('a, 'b, 'c) _fterm *   (* Left arg *)
-      ('a, 'b, 'c) _fterm *   (* Right arg *)
-      'b                      (* Metadata (domain&codomain) *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Left arg *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Right arg *)
+      'b                          (* Metadata (domain&codomain) *)
+  (* forall [A] -> t *)
+  | TeTyAbs of
+      atom *                      (* Type variable name *)
+      ('a, 'b, 'c, 'd) _fterm     (* Body *)
+  (* t [A] *)
+  | TeTyApp of
+      ('a, 'b, 'c, 'd) _fterm *    (* Body *)
+      ftype *                      (* Applied type *)
+      'd                           (* Metadata (abstraction ctx) *)
   (* give x = t in t *)
   | TeGive of 
       atom *                  (* Binding name *)
-      ('a, 'b, 'c) _fterm *   (* Binding value *)
-      ('a, 'b, 'c) _fterm     (* Body *)
+      ('a, 'b, 'c, 'd) _fterm *   (* Binding value *)
+      ('a, 'b, 'c, 'd) _fterm     (* Body *)
   (* 
    *  DESTRUCTORS
    *)
   (* match t return T with (p => M) *)
   | TeMatch of 
-      ('a, 'b, 'c) _fterm *       (* Scrutinee *)
+      ('a, 'b, 'c, 'd) _fterm *       (* Scrutinee *)
       ftype option *              (* Return type, if given *)
-      ('a, 'b, 'c) _clause list *  (* Clauses *)
+      ('a, 'b, 'c, 'd) _clause list *  (* Clauses *)
       'c                           (* Metadata (return type) *)
   (*
    *  ANNOTATIONS
    *)
   (* x : A *)
   | TeTyAnnot of 
-      ('a, 'b, 'c) _fterm *  (* Term *)
+      ('a, 'b, 'c, 'd) _fterm *  (* Term *)
       ftype                  (* Type *)   
   (* t *)
   | TeLoc of 
       location *             (* Position of term *)
-      ('a, 'b, 'c) _fterm    (* Term *)
+      ('a, 'b, 'c, 'd) _fterm    (* Term *)
 
 
 (* Clauses *)
-and ('a, 'b, 'c) _clause = 
+and ('a, 'b, 'c, 'd) _clause = 
   (* p => M *)
   | Clause of 
       pattern *                    (* Pattern *)
-      ('a, 'b, 'c) _fterm          (* Body *)
+      ('a, 'b, 'c, 'd) _fterm          (* Body *)
 
 (* Pattern *)
 and pattern = 
@@ -163,8 +177,8 @@ and integer = Int64.t
 [@@deriving show, map, fold]
 
 (* Program *)
-type ('a, 'b, 'c) _program = 
-  | Program of ('a, 'b, 'c) _fterm
+type ('a, 'b, 'c, 'd) _program = 
+  | Program of ('a, 'b, 'c, 'd) _fterm
   
 [@@deriving show]
 
@@ -175,17 +189,20 @@ type ('a, 'b, 'c) _program =
 type pre_fterm = 
   (type_metadata runtime,
    application_metadata runtime,
-   type_metadata runtime) _fterm
+   type_metadata runtime,
+   type_application_metadata runtime) _fterm
   
 and pre_clause =
   (type_metadata runtime,
    application_metadata runtime,
-   type_metadata runtime) _clause
+   type_metadata runtime,
+   type_application_metadata runtime) _clause
 
 and pre_program = 
   (type_metadata runtime,
    application_metadata runtime,
-   type_metadata runtime) _program
+   type_metadata runtime,
+   type_application_metadata runtime) _program
 
 [@@deriving show, fold]
 
@@ -195,17 +212,20 @@ and pre_program =
 type fterm = 
   (type_metadata,
    application_metadata,
-   type_metadata) _fterm
+   type_metadata,
+   type_application_metadata) _fterm
   
 and clause =
   (type_metadata,
    application_metadata,
-   type_metadata) _clause
+   type_metadata,
+   type_application_metadata) _clause
 
 and program = 
   (type_metadata,
    application_metadata,
-   type_metadata) _program
+   type_metadata,
+   type_application_metadata) _program
 
 [@@deriving show, fold]
 
@@ -213,7 +233,7 @@ and program =
 
 (* Petrifaction amounts to forcing every metadata throughout. *) 
 let petrify_fterm (term: pre_fterm): fterm =
-  map__fterm force force force term
+  map__fterm force force force force term
 
 let petrify (Program (term)) =
   Program (petrify_fterm term)
