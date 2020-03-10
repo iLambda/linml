@@ -1,4 +1,5 @@
 open Lang.Types
+open Utils
 open Utils.Atom
 
 (* Errors thrown when an operation is invalid *)
@@ -115,3 +116,8 @@ val separate: linenv -> linenv -> atom * separation
 (** [pick env] picks a linear variable from the environment *)
 val pick: linenv -> atom * int
 
+(* ------------------------------------------------------------------------------- *)
+(* Helpers *)
+
+(** [print xenv env] returns a string representing the linear environment *)
+val print: ?color:bool -> env -> Export.env -> string

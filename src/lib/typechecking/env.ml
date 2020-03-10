@@ -1,5 +1,7 @@
 open Lang
 open Lang.Types
+open Printer
+open ANSITerminal
 open Utils.Atom
 
 (* Errors thrown when an operation is invalid *)
@@ -303,3 +305,39 @@ let separate lenv lenv' : atom * separation =
   with 
     Not_found -> failwith "Environments are equal"
   
+
+(* ------------------------------------------------------------------------------- *)
+(* Print helpers *)
+
+(** [print env] returns a string representing the linear environment *)
+
+let descriptor color xenv x = 
+  (* Check if color needed *)
+  let sprintf = 
+    if color 
+    then ANSITerminal.sprintf [Bold; Reset; Bold]
+    else Printf.sprintf
+  in
+  function 
+  | BindLin (_, 0) -> None 
+  | BindLin (ty, m) -> 
+      Some 
+        (sprintf "%s %s : %s"
+          "val"
+          (print_atom xenv x)
+          (print_type xenv (Types.multiply ty m)))
+  | BindExp ty -> 
+      Some 
+        (sprintf "%s %s : %s"
+          "val"
+          (print_atom xenv x)
+          (print_type xenv ty))
+
+let print ?(color=false) env xenv = 
+  let bindings = AtomMap.bindings env in 
+  let descriptors = 
+    List.filter_map
+      (fun (x, b) -> descriptor color xenv x b)
+      bindings
+    in 
+  String.concat "\n" descriptors
