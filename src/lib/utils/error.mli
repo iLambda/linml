@@ -1,4 +1,8 @@
 (* This module helps report errors. *)
+exception InternalError
+
+type error_mode = 
+  Exit | Exception
 
 type location =
   Lexing.position * Lexing.position
@@ -41,3 +45,8 @@ val signaled: unit -> unit
 
 val warning: location list -> string -> unit
 
+(* [mode m] sets the exit mode *)
+val mode: error_mode -> unit
+
+(* [fail ()] exists or casts an exception depending on the error mode*)
+val fail: unit -> 'a

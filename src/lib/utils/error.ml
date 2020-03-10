@@ -2,14 +2,29 @@ open ANSITerminal
 (* open Printf *)
 open Lexing
 
+exception InternalError
+
+type error_mode = 
+  Exit | Exception
+
 type location =
     Lexing.position * Lexing.position
 
 let pp_location oc _ = Format.fprintf oc "<>"
 
+let exit_mode = ref Exit
+
 let dummy =
   (Lexing.dummy_pos, Lexing.dummy_pos)
 
+let mode m = exit_mode := m
+
+let do_exit () = 
+  flush_all ();
+  match !exit_mode with 
+    | Exit -> exit 1
+    | Exception -> raise InternalError
+  
 let is_dummy (pos1, pos2) =
   pos1 == Lexing.dummy_pos && pos2 == Lexing.dummy_pos
 
@@ -54,7 +69,7 @@ let signala atoms message =
 
 let error locs message =
   signal locs message;
-  exit 1
+  do_exit ()
 
 let errora atoms message =
   error (atoms2locs atoms) message
@@ -64,5 +79,6 @@ let errorb lexbuf msg =
 
 let signaled () =
   if !signaled then
-    exit 1
+    do_exit ()
 
+let fail = do_exit 
