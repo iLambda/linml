@@ -4,12 +4,12 @@ open Utils.Atom
 (* ------------------------------------------------------------------------------- *)
 (* Types *)
 
-(* Table containing all the datatypes & their constructors *)
-type datatype_table = {
-  (* The types *)
-  dtys: datatype AtomMap.t;
-  (* The constructors *)
-  ctors: AtomSet.t
+(* Table containing all the kinds (tyctor, datactor) *)
+type kind_table = {
+  (* The type constructors *)
+  ty_cons: datatype AtomMap.t;
+  (* The data constructors *)
+  data_cons: AtomSet.t
 }
 
 (* A type ctor *)
@@ -20,18 +20,15 @@ and datatype_ctor =
 
 (* A type *)
 and datatype =
-  (* Inductive *) 
-  | DtyInductive of 
-      datatype_ctor list   (* Its ctors *)
-
+  | DtyInductive of datatype_ctor list    (* Inductive *) 
   
 (* ------------------------------------------------------------------------------- *)
 (* Constants *)
 
 (* An empty datatype table *)
-let empty : datatype_table = { 
-  dtys=AtomMap.empty; 
-  ctors=AtomSet.empty; 
+let empty : kind_table = { 
+  ty_cons=AtomMap.empty; 
+  data_cons=AtomSet.empty; 
 }
   
 (* ------------------------------------------------------------------------------- *)

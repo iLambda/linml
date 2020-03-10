@@ -4,8 +4,8 @@ open Utils.Atom
 (* ------------------------------------------------------------------------------- *)
 (* Types *)
 
-(* Table containing all the datatype & their constructors *)
-type datatype_table
+(* Table containing all the kinds (tyctor, datactor) *)
+type kind_table
 
 (* A type ctor *)
 type datatype_ctor = 
@@ -22,7 +22,7 @@ type datatype =
 (* Constants *)
 
 (* An empty datatype table *)
-val empty : datatype_table
+val empty : kind_table
 
 (* ------------------------------------------------------------------------------- *)
 (* Datatype table manipulation *)
