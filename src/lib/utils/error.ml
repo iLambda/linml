@@ -18,12 +18,6 @@ let dummy =
   (Lexing.dummy_pos, Lexing.dummy_pos)
 
 let mode m = exit_mode := m
-
-let do_exit () = 
-  flush_all ();
-  match !exit_mode with 
-    | Exit -> exit 1
-    | Exception -> raise InternalError
   
 let is_dummy (pos1, pos2) =
   pos1 == Lexing.dummy_pos && pos2 == Lexing.dummy_pos
@@ -44,6 +38,13 @@ let print_location (pos1, pos2) =
 
 let signaled =
   ref false
+
+let do_exit () = 
+  signaled := false;
+  flush_all ();
+  match !exit_mode with 
+    | Exit -> exit 1
+    | Exception -> raise InternalError
 
 let atoms2locs atoms =
   List.map (fun a ->
