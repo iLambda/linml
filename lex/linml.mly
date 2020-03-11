@@ -54,7 +54,7 @@
     ty_abs 
       tyvars
       (List.fold_right (fun (x, ty) t -> SynTeLinAbs (x, ty, t)) arguments t)
-
+    
 %}
 
 (*
@@ -79,18 +79,20 @@
 (* Operators *)
 %token OPERATOR_FATARROW OPERATOR_LOLLIPOP 
 %token OPERATOR_INJECT OPERATOR_EXTRACT
+%token OPERATOR_DECLARE
 (* Punctuation *)
 %token PUNCTUATION_LPAREN PUNCTUATION_RPAREN 
 %token PUNCTUATION_LANGLE PUNCTUATION_RANGLE  
 %token PUNCTUATION_LBRACKET PUNCTUATION_RBRACKET
 %token PUNCTUATION_STAR PUNCTUATION_AND PUNCTUATION_PLUS
-%token (*PUNCTUATION_SEMICOLON*) PUNCTUATION_COLON PUNCTUATION_MINUS
+%token PUNCTUATION_COLON PUNCTUATION_MINUS
 %token PUNCTUATION_BAR 
 %token PUNCTUATION_BANG
 %token PUNCTUATION_COMMA PUNCTUATION_DOT
 %token PUNCTUATION_EQUAL PUNCTUATION_UNDERSCORE
 (* Entry point *)
 %start<Syntax.program> program
+%start<Syntax.declaration> declaration
 
 
 (*
@@ -98,7 +100,6 @@
  *)
 %right PUNCTUATION_PLUS
 %right PUNCTUATION_STAR PUNCTUATION_AND 
-%nonassoc PUNCTUATION_BANG
 %%
 
 (*
@@ -141,6 +142,14 @@ type_variable:
   | id = IDENTIFIER
     { Identifier.mak type_sort id }
 
+data_constructor:
+  | id = TAG
+      { Identifier.mak data_sort id }
+
+type_constructor:
+  | id = IDENTIFIER
+      { Identifier.mak typecon_sort id }
+
 (* Arguments *)
 term_argument:
   (* (x y ... z : A) *)
@@ -171,8 +180,8 @@ type_formal_arguments:
     
 type_actual_argument:
   (* [A ... A] *)
-  | PUNCTUATION_LBRACKET ty=typ+ PUNCTUATION_RBRACKET
-    { ty }
+  | PUNCTUATION_LBRACKET ty=typ PUNCTUATION_RBRACKET
+    { [ty] }
 
 (* Type constants *)
 %inline typconst:
@@ -352,7 +361,7 @@ term:
   | KEYWORD_FUN tyvars=loption(type_formal_arguments) arguments=term_arguments OPERATOR_LOLLIPOP body=loc(term)
     { linear_abs tyvars arguments body }
   (* give x : A = t *)
-  | KEYWORD_GIVE p=locp(pattern) codomain=preceded(PUNCTUATION_COLON, typ)?
+  | KEYWORD_GIVE p=locp(pattern) codomain=ioption(preceded(PUNCTUATION_COLON, typ))
     PUNCTUATION_EQUAL t1=loc(term) KEYWORD_IN t2=loc(term)
     { give (optional_pat_ty_annot p codomain) t1 t2 }
   (* match t return T with | p => t *)
@@ -378,13 +387,49 @@ term:
   (* x :> A + _ *)
   | t=loc(term1) OPERATOR_INJECT inj=injection
     { inject inj t }
+    
 
 (* Type declaration *)
-/* type_decl:
-  KEYWORD_TYPE name=IDENTIFIER  */
+
+type_declaration_gadt_ctor: | c=data_constructor PUNCTUATION_COLON ty=typ { c, ty }
+
+type_declaration_gadt:
+  (* type a [a] = | Tag : ty *)
+  | KEYWORD_TYPE name=type_constructor tyvars=loption(type_formal_arguments) 
+    PUNCTUATION_EQUAL PUNCTUATION_BAR? 
+    ctors=separated_nonempty_list(PUNCTUATION_BAR, type_declaration_gadt_ctor)
+      { SynDtyGADT (name, tyvars, ctors) }  
+
+%inline type_declaration:
+  (* GADT *)
+  | decl=type_declaration_gadt
+    { decl }
   
+(* Term declaration *)
+term_declaration:
+  (* Linear term declaration *)
+  | KEYWORD_GIVE p=locp(pattern) PUNCTUATION_EQUAL t=loc(term)
+    { SynDteLinear (p, t) }
 
+(* Declaration *)
+program_declaration:
+  (* Type declaration *)
+  | decl=type_declaration { SynDeclType decl }
+  (* Term declaration *)
+  | decl=term_declaration { SynDeclTerm decl }
 
-(* Program *)
-program: t=term EOF
-  { SynProg t }
+(* A fragment *)
+program_fragment:
+  | t=loc(term) { [SynDeclTop t] } 
+  | decls=program_declaration+ { decls }
+
+(* Starting points *)
+program: 
+  ds=separated_nonempty_list(OPERATOR_DECLARE, program_fragment) EOF
+  { SynProg (List.flatten ds) }
+
+declaration:
+  (* A declaration *)
+  | decl = program_declaration OPERATOR_DECLARE { decl }
+  (* A term *)
+  | t=loc(term) OPERATOR_DECLARE { SynDeclTop (t) }

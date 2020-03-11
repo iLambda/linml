@@ -1,11 +1,7 @@
 open Lang.Terms
 open Lang.Types
+open Lang.Kinds
 open Utils
-
-(* Type of stricness  *)
-type strictness = 
-  | Strict 
-  | Slack
 
 (* The type-checker checks that a complete program is well-typed. *)
 
@@ -17,7 +13,9 @@ type strictness =
    with an export environment that allows printing this type if
    desired. *)
 
-val run: pre_program -> Export.env * ftype
+val program: pre_program -> Export.env * Env.env
+
+val declaration: Export.env -> Env.env -> kind_table -> pre_declaration -> Export.env * Env.env * kind_table
 
 (* [type_of t] is a constant time operation that exploits the metadata
    produced by the typechecker to return the type of any given

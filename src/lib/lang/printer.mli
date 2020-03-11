@@ -14,4 +14,4 @@ val print_atom: Export.env -> atom -> string
 val print_type: Export.env -> ftype -> string
 
 (* Print a program. *)
-val print_program: ('a, 'b, 'c, 'd) _program -> string
+val print_program: ('a, 'b, 'c, 'd, 'e) _program -> string

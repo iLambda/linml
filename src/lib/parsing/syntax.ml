@@ -106,7 +106,23 @@ and pattern =
   (* p *)
   | SynPatLoc of location * pattern     (* Pattern *)
 
+and term_decl = 
+  (* Linear term decl *)
+  | SynDteLinear of pattern * fterm
+
+and type_decl = 
+  (* GADT decl *)
+  | SynDtyGADT of identifier * identifier list * (identifier * ftype) list
+  
+and declaration = 
+  (* Type declaration *)
+  | SynDeclType of type_decl
+  (* Term declaration *)
+  | SynDeclTerm of term_decl
+  (* Toplevel term *)
+  | SynDeclTop of fterm
+  
 and program =
-  SynProg of fterm
+  SynProg of declaration list
   
 [@@deriving show { with_path = false }]  

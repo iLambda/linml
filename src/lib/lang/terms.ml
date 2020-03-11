@@ -1,3 +1,4 @@
+open Kinds
 open Types
 open Utils.Error
 open Utils.Atom
@@ -176,11 +177,31 @@ and integer = Int64.t
 
 [@@deriving show, map, fold]
 
+(* Declarations *)
+type ('a, 'b, 'c, 'd) _declaration =
+  (* Type declaration *)
+  | DeclType of type_decl
+  (* Term declaration *)
+  | DeclTerm of ('a, 'b, 'c, 'd) _term_decl
+  (* Toplevel term *)
+  | DeclTop of  ('a, 'b, 'c, 'd) _fterm
+
+and ('a, 'b, 'c, 'd) _term_decl = 
+  (* Linear term decl *)
+  | DteLinear of pattern * ('a, 'b, 'c, 'd) _fterm
+
+and type_decl = 
+  (* GADT decl *)
+  | DtyGADT of atom * atom list * (atom * ftype) list
+
 (* Program *)
-type ('a, 'b, 'c, 'd) _program = 
-  | Program of ('a, 'b, 'c, 'd) _fterm
+and ('a, 'b, 'c, 'd, 'e) _program = 
+  | Program of 
+    ('a, 'b, 'c, 'd) _declaration list * (* The declarations *)  
+    (* The table *)
+    'e
   
-[@@deriving show]
+[@@deriving show, map]
 
 (* Shorthands *)
 (*
@@ -198,11 +219,24 @@ and pre_clause =
    type_metadata runtime,
    type_application_metadata runtime) _clause
 
+and pre_declaration = 
+  (type_metadata runtime,
+  application_metadata runtime,
+  type_metadata runtime,
+  type_application_metadata runtime) _declaration
+
+and pre_term_decl = 
+  (type_metadata runtime,
+  application_metadata runtime,
+  type_metadata runtime,
+  type_application_metadata runtime) _term_decl
+
 and pre_program = 
   (type_metadata runtime,
    application_metadata runtime,
    type_metadata runtime,
-   type_application_metadata runtime) _program
+   type_application_metadata runtime,
+   (kind_table [@opaque]) runtime) _program
 
 [@@deriving show, fold]
 
@@ -221,11 +255,24 @@ and clause =
    type_metadata,
    type_application_metadata) _clause
 
+and declaration = 
+  (type_metadata,
+  application_metadata,
+  type_metadata,
+  type_application_metadata) _declaration
+ 
+and term_decl = 
+  (type_metadata,
+  application_metadata,
+  type_metadata,
+  type_application_metadata) _term_decl
+
 and program = 
   (type_metadata,
    application_metadata,
    type_metadata,
-   type_application_metadata) _program
+   type_application_metadata,
+   (kind_table [@opaque])) _program
 
 [@@deriving show, fold]
 
@@ -235,6 +282,8 @@ and program =
 let petrify_fterm (term: pre_fterm): fterm =
   map__fterm force force force force term
 
-let petrify (Program (term)) =
-  Program (petrify_fterm term)
-  
+let petrify_decl (decl: pre_declaration): declaration = 
+  map__declaration force force force force decl
+
+let petrify (Program (decl, kinds) : pre_program) =
+  Program ((List.map petrify_decl decl), (force kinds))

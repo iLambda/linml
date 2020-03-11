@@ -615,16 +615,58 @@ and exhaustive (_patterns: pattern list) =
 (* ------------------------------------------------------------------------------- *)
 (* Typechecking a program *)
 
+(* Handle declarations *)
+let declare p ktable xenv env = function 
+  (* Term declaration *)
+  | DeclTerm (DteLinear (pat, t)) -> 
+    (* Infer type of term *)
+    let lenv = Env.linearize env in
+    let ty, (t_lenv, t_mod) = infer p xenv env Error.dummy t in
+    (* If judgement is strict and some variables haven't been used, error *)
+    if t_mod = Strict && not (Env.subset lenv t_lenv) then 
+      Typefail.unused xenv (locate Error.dummy t) (Env.pick (Env.difference t_lenv lenv));    
+    (* Typecheck the pattern and get the bindings to add *)
+    let bindings = pattern p xenv lenv Error.dummy pat ty in 
+    (* Add them to the environment *)
+    let env = Env.binds env bindings in
+    let xenv = Bindings.fold (fun (x, _) xenv -> Export.bind xenv x) bindings xenv in
+    (* Return *)
+    xenv, env, ktable
+
+  (* Type declaration *)
+  
+  | _ -> assert false
+
+(* Handle declaration *)
+let declaration xenv env ktable decl = 
+  declare (Program ([], reset ())) ktable xenv env decl
+
 (* A complete program is typechecked within empty environments. *)
-let run (Program (term) as p : pre_program) =
-  (* Make empty environments & location *)
-  let xenv = Export.empty in
-  let loc = Error.dummy in 
+let program (Program (decls, metadata) as p : pre_program) =
+  (* Fold over definition *)
+  let xenv, env, ktable = 
+    List.fold_left
+      (fun (xenv, env, ktable) decl -> 
+        (* Try declaration *)
+        let xenv, env, ktable = 
+          try declare p ktable xenv env decl
+          with 
+            | NoInfer handler -> handler (); Error.fail ()
+        in xenv, env, ktable)
+        (Export.empty, Env.empty, Kinds.empty)
+        decls
+  in 
+  (* Save metadata *)
+  metadata := Some ktable;
+  (* Return *)
+  xenv, env
+
   (* Add basic type ctors *)
   (* let xenv = AtomMap.fold (fun tc _ xenv -> Export.bind xenv tc) tctable xenv in
   let xenv = AtomMap.fold (fun dc _ xenv -> Export.bind xenv dc) dctable xenv in *)
   (* Infer type *)
-  let ty, (env, _) = 
+  
+  (* let ty, (env, _) = 
     begin try infer p xenv (Env.empty) loc term
     with 
       | NoInfer handler -> 
@@ -636,10 +678,12 @@ let run (Program (term) as p : pre_program) =
   (* Subproperty formula ensures us context is empty *)
   assert (Env.is_empty env);
   (* Return env *)
-  xenv, ty
+  xenv, ty *)
+
 
 (* ------------------------------------------------------------------------------- *)
 (* Metadata *)
+
 let rec type_of (term: fterm) = match term with 
   (* Constants *)
   | TeConst (TeOne) -> TyOne

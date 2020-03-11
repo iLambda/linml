@@ -109,9 +109,9 @@ rule main = parse
   | "-o"            { OPERATOR_LOLLIPOP }
   | ":>"            { OPERATOR_INJECT }
   | "<:"            { OPERATOR_EXTRACT }
+  | ";;"            { OPERATOR_DECLARE }
 
   (* Punctuation *)
-  (* | ';'             { PUNCTUATION_SEMICOLON } *)
   | '|'             { PUNCTUATION_BAR }
   | '_'             { PUNCTUATION_UNDERSCORE }
   | '('             { PUNCTUATION_LPAREN }

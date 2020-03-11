@@ -28,7 +28,7 @@ let lexbuf filename =
   lexbuf
 
 (* Get program *)
-let program lexbuf syntax desugar = 
+let program lexbuf syntax desugar typecheck = 
   (* Try parse *)
   let syn_program = 
     try Parser.program Lexer.main lexbuf
@@ -37,22 +37,65 @@ let program lexbuf syntax desugar =
   (* If show, say syntax is ok *)
   if syntax && not desugar then printf [] "Syntax OK.\n";
   (* Internalize *)
-  let program = Internalizer.program syn_program in 
+  let preprogram = Internalizer.program syn_program in 
   (* TODO: pretty print *)
-  if desugar then printf [] "%s" (Terms.show_pre_program program);
-  (* Return program *)
-  program
-
-(* Typecheck program *)
-let typecheck preprogram typecheck = 
+  if desugar then printf [] "%s" (Terms.show_pre_program preprogram);
   (* Typecheck *)
-  let export, ty = Typechecker.run preprogram in 
+  let export, env = Typechecker.program preprogram in 
   (* Check if type printing *)
-  if typecheck then printf [] "%s" (Printer.print_type export ty);
+  if typecheck then printf [] "%s" (Env.print env export);
   (* Petrify *)
   let program = Terms.petrify preprogram in
   (* Return the petrified program, and type *)
-  program, (export, ty)
+  ignore (program, (export, env))
+
+(* A toplevel iteration *)
+let declaration lexbuf ienv xenv env ktable = 
+  (* Try get a declaration *)
+  let syn_decl = 
+    try Parser.declaration Lexer.main lexbuf
+    with Parser.Error ->
+      Error.errorb lexbuf "Syntax error.\n"
+  in 
+  (* Internalize *)
+  let ienv, pre_decl = Internalizer.declaration ienv syn_decl in
+  (* Typecheck *)
+  let xenv, env, ktable = Typechecker.declaration xenv env ktable pre_decl in
+  (* Print env *)
+  printf [] "%s\n" (Env.print ~color:false env xenv);
+  flush stdout;
+  (* Return *)
+  ienv, xenv, env, ktable
+
+(* Make toplevel mode *) 
+let top lexbuf ctrlchar =
+  (* Set exit mode of Error module as exception *)
+  Error.mode Error.Exception;
+  (* Save the environments *)
+  let ienv = ref Import.empty in
+  let xenv = ref Export.empty in 
+  let tyenv = ref Env.empty in
+  let ktable = ref Kinds.empty in
+  (* Forever : *)
+  while true do 
+    (* Clear lexbuf *)
+    Lexing.flush_input lexbuf;
+    (* Try get a declaration *)
+    begin try 
+      (* Parse *)
+      let new_ienv, new_xenv, new_tyenv, new_ktable = 
+        declaration lexbuf !ienv !xenv !tyenv !ktable in 
+      (* Save *)
+      ienv := new_ienv; xenv := new_xenv;
+      ktable := new_ktable; tyenv := new_tyenv
+    (* Internal error occured ; break *)
+    with Error.InternalError -> () end;
+    (* Post a EOT on stderr and stdout *)
+    if ctrlchar then begin 
+      prerr_char '\x04'; print_char '\x04'; flush_all ()
+    end
+  done
+
 
 (* ------------------------------------------------------------------------------- *)
 (* Cmdliner options *)
@@ -83,7 +126,14 @@ let typeprint =
   (* Documentation *)
   let doc = "Prints the program's type." in 
   (* The cmd *)
-  Arg.(value & flag & info ["t"; "type"] ~docv:"TYPE" ~doc)
+  Arg.(value & flag & info ["ty"; "type"] ~docv:"TYPE" ~doc)
+
+(* Check if binary stop character needed *)
+let toplevel = 
+  (* Documentation *)
+  let doc = "Outputs control characters for lltop. Only works in toplevel mode." in 
+  (* The cmd *)
+  Arg.(value & flag & info ["lltop"] ~docv:"LLTOP" ~doc)
 
 
 (* ------------------------------------------------------------------------------- *)
@@ -91,10 +141,29 @@ let typeprint =
 
 (* The lexbuf *)
 let lexbuf_t = Term.(const lexbuf $ filename)
-(* The pre-program *)
-let preprogram_t = Term.(const program $ lexbuf_t $ syntax $ desugar)
-(* The program *)
-let program_t = Term.(const typecheck $ preprogram_t $ typeprint)
+(* The program mode *)
+let program_t = Term.(const program $ lexbuf_t $ syntax $ desugar $ typeprint)
+let toplevel_t = Term.(const top $ lexbuf_t $ toplevel)
+(* The entrypoint *)
+(* let main_ty = Term.(const main $ toplevel) *)
+
+(* ------------------------------------------------------------------------------- *)
+(* Cmdliner choices *)
+let program_choice = 
+  (* Make info for this choice *)
+  let program_info = Term.info "program" in 
+  (* Return term & info *)
+  program_t, program_info
+
+let toplevel_choice = 
+  (* Make info for this choice *)
+  let toplevel_info = Term.info "top" in 
+  (* Return term & info *)
+  toplevel_t, toplevel_info
+
+let choices = [program_choice; toplevel_choice]
+
+
 
 (* ------------------------------------------------------------------------------- *)
 (* Cmdliner program info *)
@@ -110,4 +179,5 @@ let info =
 (* ------------------------------------------------------------------------------- *)
 (* Entry point *)
 
-let () = Term.exit @@ Term.eval (program_t, info)
+let () = Term.exit @@ Term.eval_choice (program_t, info) choices
+(* let () = Term.exit @@ Term.eval (main_ty, info) *)

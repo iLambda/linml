@@ -2,6 +2,7 @@ open Lang
 open Lang.Sort
 open Lang.Types
 open Lang.Terms
+open Printf
 open Syntax
 open Utils
 open Utils.Atom
@@ -14,20 +15,48 @@ type atom =
 type env =
     Import.env
 
+
+(* ------------------------------------------------------------------------- *)
+(* Locate a syntaxic term *)
+let locate ?(default=Error.dummy) = function 
+  | SynTeLoc (loc, _) -> loc 
+  | _ -> default
+
+(* ------------------------------------------------------------------------- *)
+
 (* Term variables, type variables, type constructors, and data constructors are
    explicitly bound. *)
 let bind env id : atom * env =
   let env = Import.bind env id in
   Import.resolve env id, env
 
-let free _ _ = () (*Import.free*)
+let free = Import.free
+
+let bind_no_dupl env id : atom * env =
+  free env id;
+  let env = Import.bind env id in
+  Import.resolve env id, env
+
+(* ------------------------------------------------------------------------- *)
+
+let itycon tctable env id tys = 
+  let tc = Import.resolve env id in
+  let arity_got = List.length tys in
+  let arity_expected = 
+    (* If found, check arity. Else, fail silently *)
+    Option.value (AtomMap.find_opt tc tctable) ~default:arity_got 
+  in
+  (* Compare arities *)
+  if arity_got <> arity_expected then 
+    Error.signal [ Identifier.location id ]
+      (Printf.sprintf "The type constructor %s expects %d arguments, but is here applied to %d arguments.\n"
+        (Identifier.name id) arity_expected arity_got);
+  (* Return the tycon *)
+  TyCon (tc, tys)
 
 (* [itype] converts a type from external syntax into internal syntax. *)
 let ityvar env a =
   TyFreeVar (Import.resolve env a)
-
-(* let ityvars env =
-  List.map (ityvar env) *)
 
 let rec itype tctable env : Syntax.ftype -> Types.ftype = function
   (* Constants *)
@@ -44,15 +73,17 @@ let rec itype tctable env : Syntax.ftype -> Types.ftype = function
   | SynTyForall (a, body) -> 
       let a, env = bind env a in 
       TyForall (Types.abstract a (itype tctable env body))
-
+      
   (* Type free variables / type constructors *)
   | SynTyVarOrTyCon (id, []) when Import.resolves env type_sort id ->
-  (* | SynTyVarOrTyCon (id, []) when Import.resolves env type_sort id -> *)
       (* if there are no type arguments and if [id] resolves as a type variable [a],
          then consider it is a type variable *)
       let a = Identifier.mak type_sort id in ityvar env a
       
-  | SynTyVarOrTyCon _ -> failwith "No type constructors yet"
+  | SynTyVarOrTyCon (id, tys) -> 
+      (* This is a type constructor *)
+      let tc = Identifier.mak typecon_sort id in
+      itycon tctable env tc (itypes tctable env tys)
 
 and itypeo tctable env = function 
   | None -> None 
@@ -105,7 +136,7 @@ let rec iterm tctable env = function
   (* give x : A = t *)
   | SynTeGive (x, t, t') -> 
       (* Check if identifier free. No shadowing in give *)
-      free env x;
+      (* free env x; *)
       (* Bind, no problem *)
       let x, env' = bind env x in
       TeGive (x, iterm tctable env t, iterm tctable env' t')
@@ -261,12 +292,116 @@ and get_id_pattern = function
   tctable, dctable, env *)
 
 (* ------------------------------------------------------------------------- *)
+let itydecl tytable ienv = function 
+  (* GADT decl *)
+  | SynDtyGADT (tyname, tyvars, ctors) -> 
+      (* Check if free & bind type ctors name *)
+      let tyname, ienv = bind_no_dupl ienv tyname in
+      (* Bind all tyvars *)
+      let tyvars, tyvars_env =
+        let tyvars_env = Import.bind_simultaneously ienv tyvars in
+        let tyvars = List.map (Import.resolve ienv) tyvars in
+        tyvars, tyvars_env
+      in       
+      (* Check if free & bind data ctors names *)
+      let ctors, ienv = 
+        (* Split ctor names and teir types *)
+        let ctors, tys = List.split ctors in
+        (* Check all ids are free *)
+        List.iter (free ienv) ctors;
+        (* Bind all identifiers *)
+        let ienv = Import.bind_simultaneously ienv ctors in
+        (* Resolve them to get matching atoms *)
+        let ctors = List.map (Import.resolve ienv) ctors in
+        (* Resolve all types, but use the environment where
+           we internalized the type vars *)
+        let tys = List.map (itype tytable tyvars_env) tys in
+        (* Recombine, and return env w/ all the ctors *)
+        List.combine ctors tys, ienv
+      in
+      (* Map the tycon to its arity *)
+      let arity = List.length tyvars in
+      let tytable = AtomMap.add tyname arity tytable in
+      (* Return *)
+      DtyGADT (tyname, tyvars, ctors), (ienv, tytable)
+
+(* ------------------------------------------------------------------------- *)
+let itedecl tytable ienv = function 
+  (* Linear decl *)
+  | SynDteLinear (p, t) ->
+      (* Internalize term & pattern*)
+      let t = iterm tytable ienv t in
+      let p', env = ipattern (Error.dummy) tytable ienv p in
+      (* Bind in import env *)
+      let env = Import.bind_simultaneously env (get_id_pattern p) in
+      (* Return *)
+      DteLinear (p', t), env
+      
+
+(* ------------------------------------------------------------------------- *)
+
+let idecl toplevel tytable ienv = function 
+    (* Top level declaration with disabled toplevel mode*)
+    | SynDeclTop t when not toplevel -> 
+        Error.error [locate t] 
+          (sprintf "Terms cannot be evaluated without being bound when toplevel mode is disabled.\nUse --top instead.")
+    (* Top level declaration with disabled toplevel mode*)
+    | SynDeclTop t -> DeclTop (iterm tytable ienv t), (tytable, ienv)
+    (* Type decl *)
+    | SynDeclType tydecl -> 
+        let tydecl, (ienv, tytable) = itydecl tytable ienv tydecl in 
+        DeclType tydecl, (tytable, ienv)
+    (* Term decl *)
+    | SynDeclTerm tedecl -> 
+        let tedecl, ienv = itedecl tytable ienv tedecl in
+        DeclTerm tedecl, (tytable, ienv)
+
+let idecls toplevel ienv decls = 
+  (* Internalize declarations *)
+  let decls, (_, ienv) = 
+    let idecl_folder (decls, (tytable, ienv)) decl = 
+      (* Internalize this declaration *)
+      let decl, (tytable, ienv) = idecl toplevel tytable ienv decl in
+      (* Signal error *)
+      Error.signaled ();
+      (* Return *)
+      (decl::decls, (tytable, ienv))
+    in
+    List.fold_left idecl_folder ([], (AtomMap.empty, ienv)) decls 
+  in 
+  (* Return converted program *)
+  ienv, decls
+
+(* ------------------------------------------------------------------------- *)
+
+(* [declaration] converts a single declaration *)
+
+let declaration ienv decl = 
+  let decl, (_, ienv) = idecl true AtomMap.empty ienv decl in
+  (* Signal error *)
+  Error.signaled ();
+  (* Return *) 
+  ienv, decl
+
+let declarations ienv decls = 
+  (* Internalize declarations *)
+  let decls, (_, ienv) = 
+    let idecl_folder (decls, (tytable, ienv)) decl = 
+      (* Internalize this declaration *)
+      let decl, (tytable, ienv) = idecl true tytable ienv decl in
+      (* Signal error *)
+      Error.signaled ();
+      (* Return *)
+      (decl::decls, (tytable, ienv))
+    in
+    List.fold_left idecl_folder ([], (AtomMap.empty, ienv)) decls 
+  in 
+  (* Return converted program *)
+  ienv, decls
 
 (* [program] converts a complete program. *)
 
 let program = function
-  | SynProg t ->
-      let t = iterm AtomMap.empty Import.empty t in
-      Error.signaled();
-      Program (t)
-
+  | SynProg decls -> 
+    let _, decls = idecls false Import.empty decls in
+    Program (decls, reset ())

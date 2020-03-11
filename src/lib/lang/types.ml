@@ -1,6 +1,7 @@
 open Utils
 open Utils.Atom
 open Utils.Identifier
+open Ppx_compare_lib.Builtin
 
 (* Needed, else ppx_compare complains *)
 let compare_int = Stdlib.compare
@@ -48,6 +49,7 @@ let rec abstract a i ty =
     | TyLollipop (t1, t2) -> TyLollipop (abstract a i t1, abstract a i t2)
     | TyArrow (t1, t2) -> TyArrow (abstract a i t1, abstract a i t2)
     | TyBang (t) -> TyBang (abstract a i t)
+    | TyCon (x, tys) -> TyCon (x, List.map (abstract a i) tys)
     (* Forall ! Increment bound variable *)
     | TyForall { hint; body } -> TyForall { hint; body=abstract a (i+1) body }
 
@@ -73,6 +75,7 @@ let rec fill i ty c =
     | TyLollipop (t1, t2) -> TyLollipop (fill i ty t1, fill i ty t2)
     | TyArrow (t1, t2) -> TyArrow (fill i ty t1, fill i ty t2)
     | TyBang t -> TyBang (fill i ty t)
+    | TyCon (x, tys) -> TyCon (x, List.map (fill i ty) tys)
     (* Forall ! Increment bound variable *)
     | TyForall { hint; body } -> TyForall { hint; body=fill (i+1) ty body }
 
