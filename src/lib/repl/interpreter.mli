@@ -4,14 +4,18 @@
 
 type state = { 
   (* The number of input commands *)  
-  n : int 
+  n : int;
+  (* The process *)
+  process: Lwt_process.process_full;
+  (* The response stream *)
+  response: string Lwt_stream.t;
 }
 
 (* ------------------------------------------------------------------------------- *)
 (* State manipulation *)
 
 (** [default] returns the initial state of the interpreter *)
-val default : state
+val default : unit -> state
 
 (* ------------------------------------------------------------------------------- *)
 (* Actions *)

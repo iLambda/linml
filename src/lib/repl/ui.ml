@@ -51,7 +51,7 @@ let make_output _term _state out =
   (* Start of line *)
   let header = eval [ B_bold true; B_fg red; S "lltop"; B_fg magenta; S " > " ] in
   (* Print output *)
-  let output = of_utf8_maybe_invalid out in
+  let output = of_utf8 out in
   (* Return *)
   header ^^ output
 
