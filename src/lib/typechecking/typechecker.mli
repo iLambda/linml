@@ -1,6 +1,6 @@
+open Lang
 open Lang.Terms
 open Lang.Types
-open Lang.Kinds
 open Utils
 
 (* The type-checker checks that a complete program is well-typed. *)
@@ -13,12 +13,13 @@ open Utils
    with an export environment that allows printing this type if
    desired. *)
 
+(** [program p] typechecks a program, and returns an export environment, and the external typing environment *)
 val program: pre_program -> Export.env * Env.env
 
-val declaration: Export.env -> Env.env -> kind_table -> pre_declaration -> Export.env * Env.env * kind_table
+(** [declaration xenv env ktable d] typechecks a declaration, and returns the modified environments *)
+val declaration: Export.env -> Env.env -> Kinds.env -> pre_declaration -> Export.env * Env.env * Kinds.env
 
-(* [type_of t] is a constant time operation that exploits the metadata
+(** [type_of t] is a constant time operation that exploits the metadata
    produced by the typechecker to return the type of any given
    petrified term. *)
-
 val type_of: fterm -> ftype

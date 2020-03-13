@@ -2,6 +2,7 @@ open Env
 open Lang
 open Lang.Terms
 open Lang.Types
+open Lang.Kinds
 open Printf
 open Utils
 
@@ -36,6 +37,18 @@ let deconstruct_univ xenv loc =
     | TyForall ctx -> ctx
     | ty -> Typefail.expected_form xenv loc "a universal" ty
 
+(* Check type is well formed, but catch exception *)
+let well_formed xenv ktbl ty = 
+  try 
+    Kinds.well_formed ktbl ty
+  with 
+  | Tyvar_unbound x -> 
+      Typefail.unbound_id_kind x "type variable"
+  | Tycon_unbound x -> 
+      Typefail.unbound_id_kind x "type constructor"
+  | Tycon_arity { tycon; expected; got } ->
+      Typefail.tycon_arity_mismatch xenv tycon expected got
+
 (* ------------------------------------------------------------------------------- *)
 (* Strictness of judgements *)
 
@@ -61,11 +74,11 @@ let strictest x y =
     | Slack, Slack -> Slack
 
 (* ------------------------------------------------------------------------------- *)
-(* Judgements *)
+(* Typechecking a term *)
 
 (* Infer the type of a program *)
 let rec infer 
-  (p: pre_program)       (* The program *)
+  (ktbl: Kinds.env)       (* The table of types&kinds *)
   (xenv: Export.env)     (* The export environment *)
   (env: Env.env)         (* The typing environment *)
   (loc: Error.location)  (* The current location *)
@@ -95,16 +108,16 @@ let rec infer
     (* t, t' *)
     | TeSimPair (t1, t2) -> 
       (* Infer type of t1 and t2 in the same environment *)
-      let ty1, (lenv1, mod1) = infer p xenv env loc t1 in
-      let ty2, (lenv2, mod2) = infer p xenv (Env.compose lenv1 env) loc t2 in
+      let ty1, (lenv1, mod1) = infer ktbl xenv env loc t1 in
+      let ty2, (lenv2, mod2) = infer ktbl xenv (Env.compose lenv1 env) loc t2 in
       (* Return t1 & t2 *)
       TyTensor (ty1, ty2), (lenv2, slackest mod1 mod2)
       
     (* <t, t'> *)
     | TeAltPair (t1, t2) -> 
       (* Infer type of t1 and t2 in the same environment *)
-      let ty1, (lenv1, mod1) = infer p xenv env loc t1 in
-      let ty2, (lenv2, mod2) = infer p xenv env loc t2 in
+      let ty1, (lenv1, mod1) = infer ktbl xenv env loc t1 in
+      let ty2, (lenv2, mod2) = infer ktbl xenv env loc t2 in
       (* Check if output environments are the same *)
       if not (Env.equal lenv1 lenv2) then begin 
         (* Separate the environments *)
@@ -121,14 +134,18 @@ let rec infer
     (* A | t *)
     | TeUnionLeft (t, ty2) ->
       (* Infer type of t *)
-      let ty1, (lenv1, mod1) = infer p xenv env loc t in
+      let ty1, (lenv1, mod1) = infer ktbl xenv env loc t in
+      (* Ensure type is well formed *)
+      well_formed xenv ktbl ty2;
       (* Return ty1 + ty2 *)
       TyPlus (ty1, ty2), (lenv1, mod1)
 
     (* t | A *)
     | TeUnionRight (ty1, t) ->
       (* Infer type of t *)
-      let ty2, (lenv2, mod2) = infer p xenv env loc t in
+      let ty2, (lenv2, mod2) = infer ktbl xenv env loc t in
+      (* Ensure type is well formed *)
+      well_formed xenv ktbl ty1;
       (* Return ty1 + ty2 *)
       TyPlus (ty1, ty2), (lenv2, mod2)
 
@@ -137,7 +154,7 @@ let rec infer
       (* Linearize environment *)
       let lenv = Env.linearize env in
       (* Infer type of t with empty linear bindings *)
-      let ty, (lenv', _) = infer p xenv env loc t in
+      let ty, (lenv', _) = infer ktbl xenv env loc t in
       (* Check output type *)
       let output_ty = 
         match ty with 
@@ -172,6 +189,8 @@ let rec infer
       let xenv = Export.bind xenv x in 
       (* Split the environment over x *)
       let clear_lenv, leftover_lenv = Env.split (Env.linearize env) x in
+      (* Ensure type is well formed *)
+      well_formed xenv ktbl dom;
       (* Bind x to evaluate body *)
       let env1 = 
         (* Try to bind *)
@@ -183,7 +202,7 @@ let rec infer
           | NoBindTop -> Typefail.no_bind_top xenv (locate_atom x) "appear as a function parameter"
       in
       (* Typecheck the function body *)
-      let codom, (lenv2, mod2) = infer p xenv env1 loc t in
+      let codom, (lenv2, mod2) = infer ktbl xenv env1 loc t in
       (* If modality is strict and variable has been unused, error *)
       if mod2 = Strict && Env.has lenv2 x then
         Typefail.unused xenv loc (x, Env.multiplicity lenv2 x);
@@ -197,7 +216,7 @@ let rec infer
     (* t t' *)
     | TeApp (t, t', metadata) ->
       (* Evaluate the application *)
-      let fty, (lenv1, mod1) = infer p xenv env loc t in
+      let fty, (lenv1, mod1) = infer ktbl xenv env loc t in
       (* If application is banged, unbang *)
       let fty, bang = match fty with 
         | TyBang fty -> fty, true  
@@ -206,7 +225,7 @@ let rec infer
       let dom, codom = destruct_lollipop xenv loc fty in
       metadata := Some { domain = dom; codomain = codom; bang = bang };
       (* Check that argument is of domain type *)
-      let lenv2, mod2 = check p xenv (Env.compose lenv1 env) loc t' dom in
+      let lenv2, mod2 = check ktbl xenv (Env.compose lenv1 env) loc t' dom in
       (* Return codomain *)
       codom, (lenv2, slackest mod1 mod2)
 
@@ -214,26 +233,30 @@ let rec infer
     | TeTyAbs (x, t) -> 
       (* Introduct type argument into export env *)
       let xenv = Export.bind xenv x in  
+      (* Introduce type variable *)
+      let ktbl = Kinds.fv_add ktbl x in
       (* Infer type of body *)
-      let body_ty, (body_lenv, body_mod) = infer p xenv env loc t in
+      let body_ty, (body_lenv, body_mod) = infer ktbl xenv env loc t in
       (* Make type context and return *)
       TyForall (Types.abstract x body_ty), (body_lenv, body_mod)
 
     (* t [A] *)
     | TeTyApp (t, ty, metadata) -> 
       (* Infer type of body *)
-      let body_ty, (body_lenv, body_mod) = infer p xenv env loc t in
+      let body_ty, (body_lenv, body_mod) = infer ktbl xenv env loc t in
       (* Get type context *)
       let ty_ctx = deconstruct_univ xenv loc body_ty in
       (* Save type context info *)
       metadata := Some { context = ty_ctx };
+      (* Ensure type is well formed *)
+      well_formed xenv ktbl ty;
       (* Fill the type substitution and return the produced type *)
       Types.fill ty_ctx ty, (body_lenv, body_mod)
 
     (* give x = t1 in t2*)
     | TeGive (x, t1, t2) -> 
       (* Infer type of t1 *)
-      let ty_arg, (lenv_arg, mod_arg) = infer p xenv env loc t1 in
+      let ty_arg, (lenv_arg, mod_arg) = infer ktbl xenv env loc t1 in
       
       (* Split the environment over x *)
       let lenv_clear, lenv_leftover = Env.split lenv_arg x in
@@ -250,7 +273,7 @@ let rec infer
       (* Extend export env *)
       let xenv = Export.bind xenv x in
       (* Infer the give's body type *)
-      let ty_body, (lenv_body, mod_body) = infer p xenv env1 loc t2 in
+      let ty_body, (lenv_body, mod_body) = infer ktbl xenv env1 loc t2 in
       (* If modality is strict and variable has been unused, error *)
       if mod_body = Strict && Env.has lenv_body x then
         Typefail.unused xenv loc (x, Env.multiplicity lenv_body x);
@@ -264,14 +287,14 @@ let rec infer
     (* match t return T with | *)
     | TeMatch (t, oty, clauses, metadata) -> 
       (* Infer type of scrutinee *)
-      let scrutinee_ty, (scrutinee_lenv, scrutinee_mod) = infer p xenv env loc t in
+      let scrutinee_ty, (scrutinee_lenv, scrutinee_mod) = infer ktbl xenv env loc t in
       let scrutinee_env = Env.compose scrutinee_lenv env in
       (* Check if top *)
       if Types.equal scrutinee_ty TyTop then 
         Typefail.no_bind_top xenv (locate loc t) "be the scrutinee of a match";
 
       (* Evaluate patterns *)
-      let pattern_binder = (Fun.flip (pattern p xenv scrutinee_lenv loc)) scrutinee_ty in
+      let pattern_binder = (Fun.flip (pattern ktbl xenv scrutinee_lenv loc)) scrutinee_ty in
       let patterns = List.map (fun (Clause (pat, _)) -> pat) clauses in
       let patterns_bindings = List.map pattern_binder patterns in
       let patterns_envs = List.map (Env.binds scrutinee_env) patterns_bindings in
@@ -282,7 +305,11 @@ let rec infer
       (* Obtain return type *)
       let body_ty = match oty with 
         (* Match has return statement *)
-        | Some ty -> ty
+        | Some ty -> 
+          (* Ensure type is well formed *)
+          well_formed xenv ktbl ty;
+          (* Return it *)
+          ty
         (* Infer from first available clause *)
         | None -> 
           (* Helper to infer type from body *)
@@ -295,7 +322,7 @@ let rec infer
               begin 
                 try 
                   (* Infer *)
-                  let ty, _ = infer p xenv env loc body in 
+                  let ty, _ = infer ktbl xenv env loc body in 
                   (* Return inferred type *)
                   Some ty
                 (* Couldn't infer ; try next one *)
@@ -312,7 +339,7 @@ let rec infer
             | Some ty -> ty
       in
       (* Evaluate all bodies *)
-      let body_checker env body = check p xenv env loc body body_ty in
+      let body_checker env body = check ktbl xenv env loc body body_ty in
       let bodies = List.map (fun (Clause (_, b)) -> b) clauses in 
       let bodies_inferred = List.map2 body_checker patterns_envs bodies in
       let bodies_envs, bodies_mods = List.split bodies_inferred in
@@ -347,13 +374,17 @@ let rec infer
       body_ty, (return_env, return_mod)
 
     (* x : A *)
-    | TeTyAnnot (t, ty) -> ty, check p xenv env loc t ty
+    | TeTyAnnot (t, ty) -> 
+      (* Ensure type is well formed *)
+      well_formed xenv ktbl ty;
+      (* Return it *)
+      ty, check ktbl xenv env loc t ty
     (* t *)
-    | TeLoc (loc, t) -> infer p xenv env loc t
+    | TeLoc (loc, t) -> infer ktbl xenv env loc t
 
 (* Check the type of a prograù *)
 and check
-  (p: pre_program)       (* The program *)
+  (ktbl: Kinds.env)   (* The table of types&kinds *)
   (xenv: Export.env)     (* The export environment *)
   (env: Env.env)         (* The typing environment *)
   (loc: Error.location)  (* The current location *)
@@ -367,7 +398,7 @@ and check
     (* refute with t *)
     | TeLoc (loc, TeZero (t, info)) -> 
       (* Evaluate t, and check it is zero *)
-      let zero_lenv, _ = check p xenv env loc t TyZero in
+      let zero_lenv, _ = check ktbl xenv env loc t TyZero in
       (* Set metadata *)
       info := Some expected;
       (* Check is always successfull, since zero is polymorphic *)
@@ -376,7 +407,7 @@ and check
     (* Usual term *)
     | TeLoc (loc, term) ->
         (* Infer type from expression *)
-        let inferred, (env, m) = infer p xenv env loc term in
+        let inferred, (env, m) = infer ktbl xenv env loc term in
         (* Verify type equals inferred type *)
         let types_equal = Types.equal inferred expected in
         (* If not equal types *)
@@ -389,11 +420,14 @@ and check
     | _ ->
       (* out of luck! We run in degraded mode, location will be wrong! *)
         let dummy_loc = (Lexing.dummy_pos, Lexing.dummy_pos) in
-        check p xenv env loc (TeLoc (dummy_loc, term)) expected
+        check ktbl xenv env loc (TeLoc (dummy_loc, term)) expected
+
+(* ------------------------------------------------------------------------------- *)
+(* Typechecking a pattern *)
 
 (* Check the type of a pattern *)
 and pattern
-  (p: pre_program)       (* The program *)
+  (ktbl: Kinds.env)       (* The table of types&kinds *)
   (xenv: Export.env)     (* The export environment *)
   (lenv: Env.linenv)     (* The typing environment *)
   (loc: Error.location)  (* The current location *)
@@ -436,7 +470,7 @@ and pattern
         (* OK *)
         | TyBang ty -> 
             (* Analyse subpattern *)
-            pattern p xenv lenv loc pat ty
+            pattern ktbl xenv lenv loc pat ty
         (* Error *)
         | _ -> Typefail.expected_form xenv loc "exponential" ty
       end
@@ -448,8 +482,8 @@ and pattern
         (* OK *)
         | TyTensor (ty, ty') ->  
           (* Check both subpatterns *)
-          let b1 = pattern p xenv lenv loc pat ty in
-          let b2 = pattern p xenv lenv loc pat' ty' in
+          let b1 = pattern ktbl xenv lenv loc pat ty in
+          let b2 = pattern ktbl xenv lenv loc pat' ty' in
           (* Verify they are disjoint  *)
           let b12 = Bindings.inter b1 b2 in
           if not (Bindings.is_empty b12) then begin
@@ -492,10 +526,13 @@ and pattern
       (* Force get subpattern type *)
       let sty = Option.get sty in  
       (* Check subpattern *)
-      pattern p xenv lenv loc pat sty
+      pattern ktbl xenv lenv loc pat sty
 
     (* p <: A + _ + A *)
     | PatUnion (pat, (left, oright)) -> 
+      (* Ensure type is well formed *)
+      List.iter (well_formed xenv ktbl) left;
+      Option.iter (well_formed xenv ktbl) oright;
       (* Count types *)
       let rec count_oty_plus = function None -> 0 | Some t -> count_ty_plus t
       and count_ty_plus ty = 
@@ -552,14 +589,14 @@ and pattern
       (* Check type *)
       if (not (Types.equal expected_ty ty)) then 
         Typefail.mismatch xenv loc expected_ty ty;
-      (* Type is ok. Now, check pattern in question matches subpattern ty type *)
-      pattern p xenv lenv loc pat subty
+      (* Type is ok. Now, check ktblattern in question matches subpattern ty type *)
+      pattern ktbl xenv lenv loc pat subty
       
     (* p | p *)
     | PatOr (pat, pat') ->
       (* Check both subpatterns *)
-      let b1 = pattern p xenv lenv loc pat ty in
-      let b2 = pattern p xenv lenv loc pat' ty in
+      let b1 = pattern ktbl xenv lenv loc pat ty in
+      let b2 = pattern ktbl xenv lenv loc pat' ty in
       (* Verify they are equal  *)
       if not (Bindings.equal b1 b2) then begin
         (* Pick one variable from disjunction *)
@@ -576,9 +613,14 @@ and pattern
       Bindings.union b1 b2
 
     (* x : t *)
-    | PatTyAnnot (pat, ty) -> pattern p xenv lenv loc pat ty
+    | PatTyAnnot (pat, ty) -> 
+      (* Ensure type is well formed *)
+      well_formed xenv ktbl ty;
+      (* Return *)
+      pattern ktbl xenv lenv loc pat ty
+      
     (* p *)
-    | PatLoc (loc, pat) -> pattern p xenv lenv loc pat ty
+    | PatLoc (loc, pat) -> pattern ktbl xenv lenv loc pat ty
 
 (* Returns true iff the pattern [q] covers patterns [ps] *)
 (* and covering q ps =
@@ -613,43 +655,114 @@ and exhaustive (_patterns: pattern list) =
   let _x = fresh () in ()
 
 (* ------------------------------------------------------------------------------- *)
-(* Typechecking a program *)
+(* Typechecking a declaration *)
+
+(* Check the validity of a type declaration *)
+and type_declaration
+  (ktbl: Kinds.env)  (* The table of types&kinds *)
+  (xenv: Export.env)        (* The export environment *)
+  (decl: type_decl)            (* The given type declaration *)
+    : Kinds.env * Export.env =     (* Returns table of kinds and export env *)
+
+  match decl with 
+    (* A GADT declaration *)
+    | DtyGADT (tyname, tyvars, ctors) ->
+      (* Make dtycons & tycon *)
+      let dtycons = List.map (fun (x, ty) -> Constructor (x, ty)) ctors in
+      let tycon = TyconGADT (tyvars, dtycons) in 
+      (* Extend env *)
+      let xenv = Export.bind xenv tyname in
+      let xenv = List.fold_left Export.bind xenv (List.map fst ctors)
+      in
+      (* Register tycon *)
+      let ktbl = 
+        try Kinds.register_tycon ktbl tyname tycon 
+        with 
+          (* Dtycon was already defined *)
+          | Dtycon_bound x -> 
+              Typefail.dtycon_bound xenv ktbl x
+          (* Tycon was already defined *)
+          | Tycon_bound x ->
+              Typefail.tycon_bound xenv x
+          (* Somewhere, a tyvar wasn't bound respected *)
+          | Tyvar_unbound x -> 
+              Typefail.unbound_id_kind x "type variable"
+          (* Somewhere, a typecon wasn't bound *)
+          | Tycon_unbound x -> 
+              Typefail.unbound_id_kind x "type constructor"
+          (* Somewhere, a typecon arity wasn't respected *)
+          | Tycon_arity { tycon; expected; got } ->
+              Typefail.tycon_arity_mismatch xenv tycon expected got
+          (* Type scheme is invalid *)
+          | Invalid_type_scheme (dtycon, ty) -> 
+              Typefail.invalid_type_scheme xenv dtycon ty 
+          (* Type scheme last ctor is invalid *)
+          | Invalid_type_scheme_con { dtycon; expected; got } -> 
+              Typefail.invalid_type_scheme_tycon xenv dtycon expected got
+      in
+      (* Extend env *)
+      let xenv = Kinds.export_tycon ktbl xenv tyname in
+      (* Return *)
+      ktbl, xenv
+
+(* Check the validity of a type declaration *)
+and term_declaration
+  (ktbl: Kinds.env)  (* The table of types&kinds *)
+  (xenv: Export.env)        (* The export environment *)
+  (env: Env.env)        (* The export environment *)
+  (decl: pre_term_decl)            (* The given type declaration *)
+    : Kinds.env * Env.env * Export.env =     (* Returns table of kinds and export env *)
+
+  match decl with 
+    (* Linear term declaration *)
+    | DteLinear (pat, t) -> 
+      (* Infer type of term *)
+      let lenv = Env.linearize env in
+      let ty, (t_lenv, t_mod) = infer ktbl xenv env Error.dummy t in
+      (* If judgement is strict and some variables haven't been used, error *)
+      if t_mod = Strict && not (Env.subset lenv t_lenv) then 
+        Typefail.unused xenv (locate Error.dummy t) (Env.pick (Env.difference t_lenv lenv));    
+      (* Typecheck the pattern and get the bindings to add *)
+      let bindings = pattern ktbl xenv lenv Error.dummy pat ty in 
+      (* Add them to the environment *)
+      let env = Env.binds env bindings in
+      let xenv = Bindings.fold (fun (x, _) xenv -> Export.bind xenv x) bindings xenv in
+      (* Return *)
+      ktbl, env, xenv
+
+(* ------------------------------------------------------------------------------- *)
+(* Typechecking a declaration *)
 
 (* Handle declarations *)
-let declare p ktable xenv env = function 
+and declare ktbl xenv env = function 
   (* Term declaration *)
-  | DeclTerm (DteLinear (pat, t)) -> 
-    (* Infer type of term *)
-    let lenv = Env.linearize env in
-    let ty, (t_lenv, t_mod) = infer p xenv env Error.dummy t in
-    (* If judgement is strict and some variables haven't been used, error *)
-    if t_mod = Strict && not (Env.subset lenv t_lenv) then 
-      Typefail.unused xenv (locate Error.dummy t) (Env.pick (Env.difference t_lenv lenv));    
-    (* Typecheck the pattern and get the bindings to add *)
-    let bindings = pattern p xenv lenv Error.dummy pat ty in 
-    (* Add them to the environment *)
-    let env = Env.binds env bindings in
-    let xenv = Bindings.fold (fun (x, _) xenv -> Export.bind xenv x) bindings xenv in
-    (* Return *)
-    xenv, env, ktable
+  | DeclTerm d ->  
+      let ktbl, env, xenv = term_declaration ktbl xenv env d in 
+      xenv, env, ktbl
+  (* Type declaration *)  
+  | DeclType d -> 
+      let ktbl, xenv = type_declaration ktbl xenv d in 
+      xenv, env, ktbl
 
-  (* Type declaration *)
-  
+  (* Toplevel term *)
   | _ -> assert false
+
+(* ------------------------------------------------------------------------------- *)
+(* Typechecking a program or a declaration *)
 
 (* Handle declaration *)
 let declaration xenv env ktable decl = 
-  declare (Program ([], reset ())) ktable xenv env decl
+  declare ktable xenv env decl
 
 (* A complete program is typechecked within empty environments. *)
-let program (Program (decls, metadata) as p : pre_program) =
+let program (Program (decls, metadata) : pre_program) =
   (* Fold over definition *)
   let xenv, env, ktable = 
     List.fold_left
       (fun (xenv, env, ktable) decl -> 
         (* Try declaration *)
         let xenv, env, ktable = 
-          try declare p ktable xenv env decl
+          try declare ktable xenv env decl
           with 
             | NoInfer handler -> handler (); Error.fail ()
         in xenv, env, ktable)
@@ -660,26 +773,6 @@ let program (Program (decls, metadata) as p : pre_program) =
   metadata := Some ktable;
   (* Return *)
   xenv, env
-
-  (* Add basic type ctors *)
-  (* let xenv = AtomMap.fold (fun tc _ xenv -> Export.bind xenv tc) tctable xenv in
-  let xenv = AtomMap.fold (fun dc _ xenv -> Export.bind xenv dc) dctable xenv in *)
-  (* Infer type *)
-  
-  (* let ty, (env, _) = 
-    begin try infer p xenv (Env.empty) loc term
-    with 
-      | NoInfer handler -> 
-          (* Call handler *)
-          handler (); 
-          (* Exit (will be done by handler, usually) *)
-          exit 1
-    end in
-  (* Subproperty formula ensures us context is empty *)
-  assert (Env.is_empty env);
-  (* Return env *)
-  xenv, ty *)
-
 
 (* ------------------------------------------------------------------------------- *)
 (* Metadata *)

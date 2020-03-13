@@ -1,4 +1,3 @@
-open Kinds
 open Types
 open Utils.Error
 open Utils.Atom
@@ -236,7 +235,7 @@ and pre_program =
    application_metadata runtime,
    type_metadata runtime,
    type_application_metadata runtime,
-   (kind_table [@opaque]) runtime) _program
+   (Kinds.env [@opaque]) runtime) _program
 
 [@@deriving show, fold]
 
@@ -272,7 +271,7 @@ and program =
    application_metadata,
    type_metadata,
    type_application_metadata,
-   (kind_table [@opaque])) _program
+   (Kinds.env [@opaque])) _program
 
 [@@deriving show, fold]
 
