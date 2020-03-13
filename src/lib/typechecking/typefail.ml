@@ -3,6 +3,9 @@ open Env
 open Lang.Printer
 open Utils
 
+(* ------------------------------------------------------------------------------- *)
+(* Linear environment errors *)
+
 let unbound xenv loc x =
   Error.error [loc] (sprintf
     "Unbound identifier %s."
@@ -35,6 +38,15 @@ let no_linear xenv loc kind x =
     kind
   )
 
+let no_discard_linear xenv loc ty = 
+  Error.error [loc] (sprintf
+    "Linear variable of type %s cannot be discarded.\n"
+    (print_type xenv ty)
+  )
+  
+(* ------------------------------------------------------------------------------- *)
+(* Additive errors *)
+
 let no_uniform_branch_times xenv loc1 loc2 x use1 use2 = 
   Error.error [loc1; loc2] (sprintf
       "Linear variable %s is consumed %d times in a branch, and %d times in another.\n"
@@ -59,11 +71,6 @@ let no_uniform_branch_unbound ?(linear=true) xenv loc x =
       (print_atom xenv x)
     )
 
-let match_no_infer _xenv loc =
-  Error.error [loc] (sprintf
-      "Match return type could not be inferred.\n"
-    )
-
 let mismatch_additive xenv loc1 loc2 x = function
   (* Check reason *)
   | DifferentType (ty, ty') -> no_uniform_branch_type xenv loc1 loc2 x ty ty'
@@ -71,17 +78,30 @@ let mismatch_additive xenv loc1 loc2 x = function
   | DifferentMult (_, 0) -> no_uniform_branch_unbound xenv loc2 x
   | DifferentMult (m, m') -> no_uniform_branch_times xenv loc1 loc2 x m m'
 
+(* ------------------------------------------------------------------------------- *)
+(* Elimination (match&let) errors *)
+
 let nonlinear_pattern xenv loc x = 
   Error.error [loc] (sprintf
     "%s was already bound : pattern must be linear\n"
     (print_atom xenv x)
   )
 
-let no_discard_linear xenv loc ty = 
+let no_bind_top xenv loc kind = 
   Error.error [loc] (sprintf
-    "Linear variable of type %s cannot be discarded.\n"
+    "Values of type %s can never %s.\n"
+    (print_type xenv Lang.Types.TyTop)
+    kind
+  )
+
+let missing_clause xenv loc ty =
+  Error.error [loc] (sprintf
+    "Pattern matching over %s is not exhaustive missing.\n"
     (print_type xenv ty)
   )
+
+(* ------------------------------------------------------------------------------- *)
+(* Inference errors *)
 
 let cant_infer_refute _xenv loc = 
   Error.error [loc] (sprintf
@@ -91,6 +111,52 @@ let cant_infer_refute _xenv loc =
 let cant_infer_match _xenv loc = 
   Error.error [loc] (sprintf
     "Couldn't infer return type of match. Use 'match [term] return [type] with' instead, or add type annotations to some clause.\n"
+  )
+
+(* ------------------------------------------------------------------------------- *)
+(* Type declaration errors *)
+
+let dtycon_bound xenv ktbl dty =
+  let ty, _ = Lang.Kinds.find_tycon ktbl dty in
+  Error.errora [dty] (sprintf
+    "The data constructor %s is already defined in type %s.\n"
+    (print_atom xenv dty) (print_atom xenv ty)
+  )
+
+let tycon_bound xenv tycon =
+  Error.errora [tycon] (sprintf
+    "The type constructor %s is already defined.\n"
+    (print_atom xenv tycon)
+  )
+  
+let tycon_arity_mismatch xenv x expected got =
+  Error.errora [x] (sprintf
+    "The type constructor %s expects %d type arguments,\nbut is applied to %d type arguments.\n"
+    (print_atom xenv x) expected got
+  )
+
+let invalid_type_scheme ?(kind="data constructor signature") xenv dtycon ty =
+  Error.errora [dtycon] (sprintf
+    "Type %s is not a valid type scheme (in data constructor %s).\nIt cannot be used as a %s.\n"
+    (print_type xenv ty) (print_atom xenv dtycon) kind
+  )
+
+
+let invalid_type_scheme_tycon xenv dtycon expected got =
+  Error.errora [dtycon] (sprintf
+    "Type scheme for data constructor %s must return a value of type %s.\nGot %s instead."
+    (print_atom xenv dtycon)
+    (print_atom xenv expected)
+    (print_atom xenv got)
+  )
+
+(* ------------------------------------------------------------------------------- *)
+(* Generic type errors *)
+
+let unbound_id_kind x kind =
+  Error.errora [x] (sprintf
+    "Unbound %s %s."
+    kind (Identifier.name (Atom.identifier x))
   )
 
 let mismatch xenv loc expected inferred =
@@ -107,13 +173,6 @@ let expected_form xenv loc form ty =
     (print_type xenv ty)
   )
 
-let no_bind_top xenv loc kind = 
-  Error.error [loc] (sprintf
-    "Values of type %s can never %s.\n"
-    (print_type xenv Lang.Types.TyTop)
-    kind
-  )
-
 let form_mismatch loc form1 form2 = 
   Error.error [loc] (sprintf
     "Type mismatch: expected %s, got %s instead.\n"
@@ -125,10 +184,4 @@ let arity_mismatch xenv loc kind1 x kind2 expected found =
   Error.error [loc] (sprintf
     "The %s %s expects %d %s arguments,\nbut is applied to %d %s arguments.\n"
     kind1 (print_atom xenv x) expected kind2 found kind2
-  )
-
-let missing_clause xenv loc ty =
-  Error.error [loc] (sprintf
-    "Pattern matching over %s is not exhaustive missing.\n"
-    (print_type xenv ty)
   )
