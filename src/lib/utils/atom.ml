@@ -70,6 +70,7 @@ let fresha a =
 (* Accessors. *)
 
 let identifier { identifier = identifier; _ } = identifier
+let uid { number; _ } = number
 
 (* ---------------------------------------------------------------------------- *)
 

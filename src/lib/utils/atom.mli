@@ -18,6 +18,7 @@ val fresha: atom -> atom
 (* Accessors. *)
 
 val identifier: atom -> Identifier.t
+val uid: atom -> int
 
 (* ---------------------------------------------------------------------------- *)
 
