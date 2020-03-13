@@ -41,7 +41,7 @@ let program lexbuf syntax desugar typecheck =
   (* TODO: pretty print *)
   if desugar then printf [] "%s" (Terms.show_pre_program preprogram);
   (* Typecheck *)
-  let export, env = Typechecker.program preprogram in 
+  let _, export, env = Typechecker.program preprogram in 
   (* Check if type printing *)
   if typecheck then printf [] "%s" (Env.print env export);
   (* Petrify *)
@@ -60,10 +60,24 @@ let declaration lexbuf ienv xenv env ktable =
   (* Internalize *)
   let ienv, pre_decl = Internalizer.declaration ienv syn_decl in
   (* Typecheck *)
-  let xenv, env, ktable = Typechecker.declaration xenv env ktable pre_decl in
-  (* Print env *)
-  printf [] "%s\n" (Env.print ~color:false env xenv);
-  flush stdout;
+  let decl, ktable, xenv, env = Typechecker.declaration xenv env ktable pre_decl in
+  (* Print decl *)
+  begin match decl with 
+    | DeclType (d, _, _) -> 
+        (* Print tycon & flush *)
+        printf [] "%s\n" (Printer.print_tydecl xenv d);
+        flush stdout
+    | DeclTerm _ -> 
+        (* Print environment & flush*)
+        printf [] "%s\n" (Env.print ~color:false env xenv);
+        flush stdout
+    | DeclTop (_, ty) -> 
+        (* Print environment & term, then flush *)
+        if not (Env.is_void env) then 
+          printf [] "%s\n" (Env.print ~color:false env xenv);
+        printf [] "%s\n" (Env.print_top ~color:false ty xenv);
+        flush stdout
+  end;
   (* Return *)
   ienv, xenv, env, ktable
 

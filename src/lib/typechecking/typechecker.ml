@@ -199,7 +199,7 @@ let rec infer
           (* Can't happen, since the env is split *)
           | Bound _ -> assert false
           (* We bound a top. *)
-          | NoBindTop -> Typefail.no_bind_top xenv (locate_atom x) "appear as a function parameter"
+          | NoBindTop _ -> Typefail.no_bind_top xenv (locate_atom x) "appear as a function parameter"
       in
       (* Typecheck the function body *)
       let codom, (lenv2, mod2) = infer ktbl xenv env1 loc t in
@@ -268,7 +268,7 @@ let rec infer
           (* Can't happen, since the env is split *)
           | Bound _ -> assert false
           (* We bound a top. *)
-          | NoBindTop -> Typefail.no_bind_top xenv (locate_atom x) "be bound"
+          | NoBindTop _ -> Typefail.no_bind_top xenv (locate_atom x) "be bound"
       in
       (* Extend export env *)
       let xenv = Export.bind xenv x in
@@ -662,7 +662,7 @@ and type_declaration
   (ktbl: Kinds.env)  (* The table of types&kinds *)
   (xenv: Export.env)        (* The export environment *)
   (decl: type_decl)            (* The given type declaration *)
-    : Kinds.env * Export.env =     (* Returns table of kinds and export env *)
+    : Kinds.type_ctor * Kinds.env * Export.env =     (* Returns table of kinds and export env *)
 
   match decl with 
     (* A GADT declaration *)
@@ -672,8 +672,8 @@ and type_declaration
       let tycon = TyconGADT (tyvars, dtycons) in 
       (* Extend env *)
       let xenv = Export.bind xenv tyname in
-      let xenv = List.fold_left Export.bind xenv (List.map fst ctors)
-      in
+      let xenv = List.fold_left Export.bind xenv (List.map fst ctors) in 
+      let xenv = List.fold_left Export.bind xenv tyvars in
       (* Register tycon *)
       let ktbl = 
         try Kinds.register_tycon ktbl tyname tycon 
@@ -700,10 +700,8 @@ and type_declaration
           | Invalid_type_scheme_con { dtycon; expected; got } -> 
               Typefail.invalid_type_scheme_tycon xenv dtycon expected got
       in
-      (* Extend env *)
-      let xenv = Kinds.export_tycon ktbl xenv tyname in
       (* Return *)
-      ktbl, xenv
+      (Kinds.lookup_tycon ktbl tyname), ktbl, xenv
 
 (* Check the validity of a type declaration *)
 and term_declaration
@@ -711,7 +709,7 @@ and term_declaration
   (xenv: Export.env)        (* The export environment *)
   (env: Env.env)        (* The export environment *)
   (decl: pre_term_decl)            (* The given type declaration *)
-    : Kinds.env * Env.env * Export.env =     (* Returns table of kinds and export env *)
+    : Env.env * Export.env =     (* Returns table of kinds and export env *)
 
   match decl with 
     (* Linear term declaration *)
@@ -723,12 +721,20 @@ and term_declaration
       if t_mod = Strict && not (Env.subset lenv t_lenv) then 
         Typefail.unused xenv (locate Error.dummy t) (Env.pick (Env.difference t_lenv lenv));    
       (* Typecheck the pattern and get the bindings to add *)
-      let bindings = pattern ktbl xenv lenv Error.dummy pat ty in 
+      let bindings = pattern ktbl xenv lenv Error.dummy pat ty in
       (* Add them to the environment *)
       let env = Env.binds env bindings in
-      let xenv = Bindings.fold (fun (x, _) xenv -> Export.bind xenv x) bindings xenv in
-      (* Return *)
-      ktbl, env, xenv
+      let xenv =
+        (* Try to bind *)
+        try Bindings.fold (fun (x, _) xenv -> Export.bind xenv x) bindings xenv
+        with
+          (* Already used *)
+          | Bound (x, _) -> Typefail.bound xenv (locate_atom x) x
+          (* We bound a top. *)
+          | NoBindTop x -> Typefail.no_bind_top xenv (locate_atom x) "be bound"
+      in
+      (* Return *) 
+      env, xenv
 
 (* ------------------------------------------------------------------------------- *)
 (* Typechecking a declaration *)
@@ -737,42 +743,58 @@ and term_declaration
 and declare ktbl xenv env = function 
   (* Term declaration *)
   | DeclTerm d ->  
-      let ktbl, env, xenv = term_declaration ktbl xenv env d in 
-      xenv, env, ktbl
+      (* Bind term declaration *)
+      let env, xenv = term_declaration ktbl xenv env d in 
+      (* Return *)
+      ktbl, xenv, env
   (* Type declaration *)  
-  | DeclType d -> 
-      let ktbl, xenv = type_declaration ktbl xenv d in 
-      xenv, env, ktbl
-
+  | DeclType (d, md_tycon, md_ktbl) -> 
+      (* Bind type declaration *)
+      let tycon, ktbl, xenv = type_declaration ktbl xenv d in 
+      (* Save kinds table metadata & type metadata *)
+      md_ktbl := Some ktbl;
+      md_tycon := Some tycon;
+      (* Return *)
+      ktbl, xenv, env
   (* Toplevel term *)
-  | _ -> assert false
+  | DeclTop (t, md_ty) -> 
+      (* FIXME: MODALITY ? WTF GIRL *)
+      (* Infer type of toplevel type *)
+      let ty, (lenv, _) = infer ktbl xenv env Error.dummy t in
+      (* Recompose env, since exponentials never will be consumed *)
+      let env = Env.compose lenv env in 
+      (* Save type metadata *)
+      md_ty := Some ty;
+      (* Return *)
+      ktbl, xenv, env
 
 (* ------------------------------------------------------------------------------- *)
 (* Typechecking a program or a declaration *)
 
 (* Handle declaration *)
 let declaration xenv env ktable decl = 
-  declare ktable xenv env decl
+  let ktbl, xenv, env = declare ktable xenv env decl in 
+  (Terms.petrify_decl decl), ktbl, xenv, env
 
 (* A complete program is typechecked within empty environments. *)
-let program (Program (decls, metadata) : pre_program) =
+let program ((Program (decls, metadata_ktbl) as p) : pre_program) =
   (* Fold over definition *)
-  let xenv, env, ktable = 
+  let ktable, xenv, env = 
     List.fold_left
-      (fun (xenv, env, ktable) decl -> 
+      (fun (ktable, xenv, env) decl -> 
         (* Try declaration *)
-        let xenv, env, ktable = 
+        let ktable, xenv, env = 
           try declare ktable xenv env decl
           with 
             | NoInfer handler -> handler (); Error.fail ()
-        in xenv, env, ktable)
-        (Export.empty, Env.empty, Kinds.empty)
+        in ktable, xenv, env)
+        (Kinds.empty, Export.empty, Env.empty)
         decls
   in 
   (* Save metadata *)
-  metadata := Some ktable;
+  metadata_ktbl := Some ktable;
   (* Return *)
-  xenv, env
+  (Terms.petrify p), xenv, env
 
 (* ------------------------------------------------------------------------------- *)
 (* Metadata *)
