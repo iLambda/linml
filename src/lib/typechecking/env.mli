@@ -6,7 +6,7 @@ open Utils.Atom
 exception Unbound of atom 
 exception NoMore of atom 
 exception Bound of atom * int
-exception NoBindTop
+exception NoBindTop of atom
 
 (** The type of linear environments *)
 type linenv
@@ -70,6 +70,9 @@ val of_bindings: Bindings.t -> linenv
 (* ------------------------------------------------------------------------------- *)
 (* Multiset operations *)
 
+(** [is_void lenv] returns true iff the linear environment and the exponential env are empty *)
+val is_void: env -> bool
+
 (** [is_empty lenv] returns true iff the linear environment is empty *)
 val is_empty: linenv -> bool
 
@@ -121,3 +124,6 @@ val pick: linenv -> atom * int
 
 (** [print xenv env] returns a string representing the linear environment *)
 val print: ?color:bool -> env -> Export.env -> string
+
+(** [print_top xenv env] returns a string representing the toplevel term of given type *)
+val print_top: ?color:bool -> ftype -> Export.env -> string

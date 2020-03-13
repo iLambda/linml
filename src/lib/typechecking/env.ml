@@ -8,7 +8,7 @@ open Utils.Atom
 exception Unbound of atom 
 exception NoMore of atom 
 exception Bound of atom * int
-exception NoBindTop
+exception NoBindTop of atom
 
 (* The type of environments *)
 type env = envbinding AtomMap.t
@@ -72,7 +72,7 @@ let consume env x : env * ftype =
     Raises [NoBindTop] if [ty] is top. *)
 let bind env x ty : env = 
   (* If type is top, error *)
-  if ty = TyTop then raise NoBindTop;
+  if ty = TyTop then raise (NoBindTop x);
   (* Make binding  *)
   let binding = 
     if Types.is_exponential ty 
@@ -146,6 +146,10 @@ let of_bindings bindings : linenv =
 
 (* ------------------------------------------------------------------------------- *)
 (* Multiset operations *)
+
+(** [is_void lenv] returns true iff the linear environment and the exponential env are empty *)
+let is_void env : bool = 
+  AtomMap.is_empty env
 
 (** [is_empty env] returns true iff the linear environment is empty *)
 let is_empty env : bool = 
@@ -311,27 +315,25 @@ let separate lenv lenv' : atom * separation =
 
 (** [print env] returns a string representing the linear environment *)
 
-let descriptor color xenv x = 
+let descriptor_ty color xenv x ty = 
   (* Check if color needed *)
   let sprintf = 
     if color 
     then ANSITerminal.sprintf [Bold; Reset; Bold]
     else Printf.sprintf
   in
-  function 
+  (* Print *)
+  sprintf 
+    "%s %s : %s"
+    "val"
+    (print_atom xenv x)
+    (print_type xenv ty)
+
+
+let descriptor color xenv x = function 
   | BindLin (_, 0) -> None 
-  | BindLin (ty, m) -> 
-      Some 
-        (sprintf "%s %s : %s"
-          "val"
-          (print_atom xenv x)
-          (print_type xenv (Types.multiply ty m)))
-  | BindExp ty -> 
-      Some 
-        (sprintf "%s %s : %s"
-          "val"
-          (print_atom xenv x)
-          (print_type xenv ty))
+  | BindLin (ty, m) -> Some (descriptor_ty color xenv x (Types.multiply ty m))
+  | BindExp ty -> Some (descriptor_ty color xenv x ty)
 
 let print ?(color=false) env xenv = 
   let bindings = AtomMap.bindings env in 
@@ -341,3 +343,9 @@ let print ?(color=false) env xenv =
       bindings
     in 
   String.concat "\n" descriptors
+
+(** [print_top xenv env] returns a string representing the toplevel term of given type *)
+let print_top ?(color=false) ty xenv =
+  let x = (Utils.Atom.fresh (Utils.Identifier.mk "-" Lang.Sort.term_sort)) in 
+  let xenv = Utils.Export.bind xenv x in
+  descriptor_ty color xenv x ty
