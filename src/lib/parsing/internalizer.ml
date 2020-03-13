@@ -34,8 +34,7 @@ let free = Import.free
 
 let bind_no_dupl env id : atom * env =
   free env id;
-  let env = Import.bind env id in
-  Import.resolve env id, env
+  bind env id
 
 (* ------------------------------------------------------------------------- *)
 
@@ -300,7 +299,7 @@ let itydecl tytable ienv = function
       (* Bind all tyvars *)
       let tyvars, tyvars_env =
         let tyvars_env = Import.bind_simultaneously ienv tyvars in
-        let tyvars = List.map (Import.resolve ienv) tyvars in
+        let tyvars = List.map (Import.resolve tyvars_env) tyvars in
         tyvars, tyvars_env
       in       
       (* Check if free & bind data ctors names *)
@@ -331,11 +330,9 @@ let itedecl tytable ienv = function
   | SynDteLinear (p, t) ->
       (* Internalize term & pattern*)
       let t = iterm tytable ienv t in
-      let p', env = ipattern (Error.dummy) tytable ienv p in
-      (* Bind in import env *)
-      let env = Import.bind_simultaneously env (get_id_pattern p) in
+      let p', ienv = ipattern (Error.dummy) tytable ienv p in
       (* Return *)
-      DteLinear (p', t), env
+      DteLinear (p', t), ienv
       
 
 (* ------------------------------------------------------------------------- *)
@@ -344,13 +341,13 @@ let idecl toplevel tytable ienv = function
     (* Top level declaration with disabled toplevel mode*)
     | SynDeclTop t when not toplevel -> 
         Error.error [locate t] 
-          (sprintf "Terms cannot be evaluated without being bound when toplevel mode is disabled.\nUse --top instead.")
+          (sprintf "Terms cannot be evaluated without being bound when toplevel mode is disabled.")
     (* Top level declaration with disabled toplevel mode*)
-    | SynDeclTop t -> DeclTop (iterm tytable ienv t), (tytable, ienv)
+    | SynDeclTop t -> DeclTop (iterm tytable ienv t, reset ()), (tytable, ienv)
     (* Type decl *)
     | SynDeclType tydecl -> 
         let tydecl, (ienv, tytable) = itydecl tytable ienv tydecl in 
-        DeclType tydecl, (tytable, ienv)
+        DeclType (tydecl, reset (), reset ()), (tytable, ienv)
     (* Term decl *)
     | SynDeclTerm tedecl -> 
         let tedecl, ienv = itedecl tytable ienv tedecl in
