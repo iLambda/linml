@@ -1,5 +1,4 @@
 open Types
-open Utils 
 open Utils.Atom
 
 (* ------------------------------------------------------------------------------- *)
@@ -92,5 +91,6 @@ val arity_tycon : env -> atom -> int
     Raises [Invalid_type_scheme_con] if a data con has an invalid type scheme. *)
 val register_tycon : env -> atom -> type_ctor -> env 
 
-(** [export ktbl x] exports the type constructor [x] to the environment *)
-val export_tycon : env -> Export.env -> atom -> Export.env
+(** [lookup_tycon ktbl x] returns the type constructor [x].
+    Raises [Not_found] if [x] doesn't exists *)
+val lookup_tycon: env -> atom -> type_ctor

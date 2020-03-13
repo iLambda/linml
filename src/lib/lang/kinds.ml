@@ -37,7 +37,7 @@ and type_ctor =
   | TyconGADT of 
       atom list *       (* Type variables *)
       data_ctor list    (* Constructors *) 
-
+      
   
 (* ------------------------------------------------------------------------------- *)
 (* Constants *)
@@ -223,22 +223,12 @@ let register_tycon ktbl x = function
         dty_cons=dty_cons; 
         free_tyvars=ktbl.free_tyvars }
 
-(** [export ktbl decl] exports the type declaration to the environment *)
-let export_tycon { ty_cons; _ } xenv x = 
-  (* Try get type decl *)
-  match AtomMap.find x ty_cons with 
-    (* GADT *)
-    | TyconGADT (_, ctors) -> 
-        (* Export name *)
-        let xenv = Export.bind xenv x in
-        (* Export ctors *)
-        let dty_names = List.map (fun (Constructor (x, _)) -> x) ctors in
-        let xenv = List.fold_left Export.bind xenv dty_names in
-        (* Return *)
-        xenv
-
 (** [find_tycon ktbl x] returns the name and tycon that the dtycon [x] belongs to *)
 let find_tycon { ty_cons; dty_cons; _ } x = 
   let tycon_name = AtomMap.find x dty_cons in 
   let tycon = AtomMap.find tycon_name ty_cons in 
   tycon_name, tycon
+
+(** [lookup_tycon ktbl x] returns the type constructor [x] *)
+let lookup_tycon { ty_cons; _ } x = 
+  AtomMap.find x ty_cons
