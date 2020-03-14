@@ -75,7 +75,7 @@ val has_tycon : env -> atom -> bool
 val has_dtycon : env -> atom -> bool 
 
 (** [find_tycon ktbl x] returns the name and tycon that the dtycon [x] belongs to.
-    Raises [Not_found] if the dtycon [x] wasn't defined. *)
+    Raises [Dtycon_unbound x] if the dtycon [x] wasn't defined. *)
 val find_tycon : env -> atom -> atom * type_ctor
 
 (** [arity_tycon ktbl x] returns the arity of type constructor [x]. 
@@ -92,5 +92,9 @@ val arity_tycon : env -> atom -> int
 val register_tycon : env -> atom -> type_ctor -> env 
 
 (** [lookup_tycon ktbl x] returns the type constructor [x].
-    Raises [Not_found] if [x] doesn't exists *)
+    Raises [Dtycon_unbound x] if [x] doesn't exists *)
 val lookup_tycon: env -> atom -> type_ctor
+
+(** [lookup_dtycon ktbl x] returns the type of dtycon [x].
+    Raises [Dtycon_unbound x] if [x] doesn't exists *)
+val lookup_dtycon: env -> atom -> ftype

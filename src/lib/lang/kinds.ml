@@ -20,8 +20,8 @@ exception Tyvar_unbound of atom
 type env = {
   (* The type constructors : maps tycon names to their definition *)
   ty_cons: type_ctor AtomMap.t;
-  (* The data constructors : maps dtycon names to their tycon *)
-  dty_cons: atom AtomMap.t;
+  (* The data constructors : maps dtycon names to their tycon and type *)
+  dty_cons: (atom * ftype) AtomMap.t;
   (* The free type variables *)
   free_tyvars: AtomSet.t
 }
@@ -199,12 +199,12 @@ let register_tycon ktbl x = function
         free_tyvars=ktbl_inside.free_tyvars 
       } in
       (* Check if dtycons exist *)
-      let dtycons_names = 
+      let dtycons = 
         List.map
-        (fun (Constructor (y, _)) -> 
+        (fun (Constructor (y, ty)) -> 
           if has_dtycon ktbl y then 
             raise (Dtycon_bound x);
-          y)
+          y, ty)
         ctors
       in
       (* Check if type scheme is valid *)
@@ -215,7 +215,9 @@ let register_tycon ktbl x = function
       (* Register all the data type constructors *)
       let dty_cons = 
         List.fold_left 
-          (fun dct dty -> AtomMap.add dty x dct) ktbl.dty_cons dtycons_names 
+          (fun dct (dty, ty) -> AtomMap.add dty (x, ty) dct) 
+          ktbl.dty_cons 
+          dtycons 
       in 
       let ty_cons = AtomMap.add x d ktbl.ty_cons  in 
       (* Return new kinds table *)
@@ -225,10 +227,34 @@ let register_tycon ktbl x = function
 
 (** [find_tycon ktbl x] returns the name and tycon that the dtycon [x] belongs to *)
 let find_tycon { ty_cons; dty_cons; _ } x = 
-  let tycon_name = AtomMap.find x dty_cons in 
+  let tycon_name, _ = 
+    try 
+      AtomMap.find x dty_cons 
+    with Not_found -> raise (Dtycon_unbound x) 
+  in 
   let tycon = AtomMap.find tycon_name ty_cons in 
   tycon_name, tycon
 
 (** [lookup_tycon ktbl x] returns the type constructor [x] *)
 let lookup_tycon { ty_cons; _ } x = 
-  AtomMap.find x ty_cons
+  try 
+    AtomMap.find x ty_cons
+  with Not_found -> raise (Dtycon_unbound x) 
+
+
+(** [lookup_dtycon ktbl x] returns the type of dtycon [x].
+    Raises [Dtycon_unbound x] if [x] doesn't exists *)
+let lookup_dtycon ({ dty_cons; _ } as env) x = 
+  (* Get the associated type name *)
+  let _, ty = 
+    try 
+      AtomMap.find x dty_cons
+    with Not_found -> raise (Dtycon_unbound x) 
+  in 
+  (* Get type variables  *)
+  let _, tycon = find_tycon env x in
+  let tyvars = match tycon with 
+    | TyconGADT (tyvars, _) -> tyvars 
+  in
+  (* Make forall to bind type variables *)
+  List.fold_right (fun tv ty -> TyForall (Types.abstract tv ty)) tyvars ty
