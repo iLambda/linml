@@ -100,6 +100,8 @@ let rec iterm tctable env = function
   | SynTeConst c -> TeConst (iconstant c)
   (* x *)
   | SynTeVar id -> TeVar (Import.resolve env id, reset ())
+  (* Dtycon *)
+  | SynTeData id -> TeData (Import.resolve env id, reset ())
   (* 
    *  CONSTRUCTS
    *)

@@ -104,6 +104,18 @@ let rec infer
       metadata := Some ty;
       (* Return type *)
       ty, (Env.linearize env, Strict)
+    (* Dtycon *)
+    | TeData (x, metadata) -> 
+        (* Try lookup the datatype constructor *)
+        let dty = 
+          try Kinds.lookup_dtycon ktbl x 
+          with | Tycon_unbound x -> 
+            Typefail.unbound_id_kind x "type constructor"  
+        in 
+        (* Save metadata *)
+        metadata := Some dty;
+        (* Return type *)
+        dty, (Env.linearize env, Strict)
     
     (* t, t' *)
     | TeSimPair (t1, t2) -> 
@@ -805,6 +817,8 @@ let rec type_of (term: fterm) = match term with
   | TeConst (TeTop) -> TyTop 
   (* Variable *)
   | TeVar (_, ty) -> ty
+  (* Dty con *)
+  | TeData (_, ty) -> ty
   (* Constructs *)
   | TeSimPair (t, t') -> TyTensor (type_of t, type_of t')
   | TeAltPair (t, t') -> TyWith (type_of t, type_of t')

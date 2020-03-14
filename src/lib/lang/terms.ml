@@ -46,6 +46,10 @@ type ('a, 'b, 'c, 'd) _fterm =
   | TeVar of 
       atom *  (* Variable name *)
       'a      (* Metadata (type of variable) *)
+  (* Dtycon *)
+  | TeData of 
+      atom *  (* Data ctor name *)
+      'a      (* Metadata (type of the ctor) *)
   (* 
    *  CONSTRUCTS
    *)

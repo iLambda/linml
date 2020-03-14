@@ -323,6 +323,8 @@ term0:
   | c=constants { SynTeConst c }
   (* x *)
   | x=term_variable { SynTeVar x }
+  (* Dtycon *)
+  | dtycon=data_constructor { SynTeData dtycon }
   (* x! *)
   | PUNCTUATION_BANG t=loc(term0) { SynTeBang t }
   (* <t> *)

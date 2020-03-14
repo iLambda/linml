@@ -40,6 +40,8 @@ and fterm =
   | SynTeConst of constant 
   (* x *)
   | SynTeVar of identifier
+  (* Dtycon *)
+  | SynTeData of identifier
   (* 
    *  CONSTRUCTS
    *)
