@@ -97,6 +97,24 @@ let arity_tycon ({ ty_cons; _ } as ktbl) x =
   match AtomMap.find x ty_cons with 
     | TyconGADT (xs, _) -> List.length xs 
 
+(** [arity_dtycon ktbl x] returns the arity of data constructor [x]. 
+Raises [Dtycon_unbound x] if [x] isn't a valid dty con. *)
+let arity_dtycon ({ dty_cons; _ } as ktbl) x = 
+  (* If not in, error *)
+  if not (has_dtycon ktbl x) then 
+    raise (Dtycon_unbound x);
+  (* Return arity *)
+  let _, ty = AtomMap.find x dty_cons in 
+  (* Helpers to compute arity *)
+  let rec strip_foralls = function 
+    | TyForall ctx -> 
+        strip_foralls
+          (Types.fill ctx (TyFreeVar (Atom.fresh (Types.hint ctx))))
+    | ty -> ty
+  in
+  (* Do the computation *)
+  Types.arity (strip_foralls ty)
+
 (* ------------------------------------------------------------------------------- *)
 (* Type well formedness *)
 
@@ -239,7 +257,7 @@ let find_tycon { ty_cons; dty_cons; _ } x =
 let lookup_tycon { ty_cons; _ } x = 
   try 
     AtomMap.find x ty_cons
-  with Not_found -> raise (Dtycon_unbound x) 
+  with Not_found -> raise (Tycon_unbound x) 
 
 
 (** [lookup_dtycon ktbl x] returns the type of dtycon [x].

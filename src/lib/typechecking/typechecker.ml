@@ -109,8 +109,8 @@ let rec infer
         (* Try lookup the datatype constructor *)
         let dty = 
           try Kinds.lookup_dtycon ktbl x 
-          with | Tycon_unbound x -> 
-            Typefail.unbound_id_kind x "type constructor"  
+          with | Dtycon_unbound x -> 
+            Typefail.unbound_id_kind x "data constructor"  
         in 
         (* Save metadata *)
         metadata := Some dty;
@@ -474,6 +474,42 @@ and pattern
       if Types.equal ty TyTop 
       then Typefail.no_bind_top xenv (locate_atom x) "appear in a pattern"
       else Bindings.singleton (x, ty)   (* Bind variable, strict *)
+
+    (* Data *)
+    | PatData (*(x, tyvars, ps)*) _ ->
+      failwith "TODO"
+      (* Ensures dtycon exists *)
+      (* if not (Kinds.has_dtycon ktbl x) then 
+        Typefail.unbound_id_kind x "data constructor";
+      (* Find its tycon (can't fail, since it exists) *)
+      let tycon_name, _ = Kinds.find_tycon ktbl x in
+
+      (* Check type is the right tycon *)
+      begin match ty with 
+        (* OK *)
+        | TyCon (expected_tycon, _) when Atom.equal expected_tycon tycon_name -> ()
+        (* Error *)
+        | TyCon (expected_tycon, _) -> Typefail.tycon_mismatch xenv loc expected_tycon tycon_name
+        | _ -> Typefail.expected_form xenv loc "type constructor" ty
+      end;
+      
+      (* Check tycon arity is ok *)
+      let arity_tycon = Kinds.arity_tycon ktbl tycon_name in
+      if List.compare_length_with tyvars arity_tycon <> 0 then 
+        Typefail.tycon_arity_mismatch xenv 
+          tycon_name arity_tycon (List.length tyvars);  
+      (* Add tyvars to kinds table *)
+      let ktbl' = Kinds.fv_adds ktbl tyvars in
+
+      (* Check dtycon arity is ok *)
+      let arity_dtycon = Kinds.arity_dtycon ktbl x in
+      if List.compare_length_with ps arity_dtycon <> 0 then 
+        Typefail.dtycon_arity_mismatch xenv 
+          x arity_dtycon (List.length ps);        
+      (* Get binding of all subpatterns *)
+      let bindings = List.map2 (pattern ktbl' xenv lenv loc) ps tys in
+      (* Fuse them together, and return *)
+      List.fold_left Bindings.union Bindings.empty bindings *)
 
     (* !x *)
     | PatBang pat ->

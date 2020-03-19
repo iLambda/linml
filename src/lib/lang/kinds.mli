@@ -82,6 +82,10 @@ val find_tycon : env -> atom -> atom * type_ctor
     Raises [Tycon_unbound x] if [x] isn't a valid ty con. *)
 val arity_tycon : env -> atom -> int
 
+(** [arity_dtycon ktbl x] returns the arity of data constructor [x]. 
+    Raises [Dtycon_unbound x] if [x] isn't a valid dty con. *)
+val arity_dtycon : env -> atom -> int
+
 (** [register ktbl x d] registers a new datatype in the kinds table.
     Raises [Dtycon_bound y] if [y] is already defined as a data con.
     Raises [Tycon_bound x] if [x] is already defined as a ty con.
@@ -92,7 +96,7 @@ val arity_tycon : env -> atom -> int
 val register_tycon : env -> atom -> type_ctor -> env 
 
 (** [lookup_tycon ktbl x] returns the type constructor [x].
-    Raises [Dtycon_unbound x] if [x] doesn't exists *)
+    Raises [Tycon_unbound x] if [x] doesn't exists *)
 val lookup_tycon: env -> atom -> type_ctor
 
 (** [lookup_dtycon ktbl x] returns the type of dtycon [x].

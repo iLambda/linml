@@ -141,6 +141,11 @@ and pattern =
   (* x *)
   | PatVar of 
       atom        (* Name of binding *)
+  (* Data *)
+  | PatData of 
+      atom *        (* Data constructor *)
+      atom list *   (* Type variables*)
+      pattern list  (* Subpatterns *)
   (* x! *)
   | PatBang of 
       pattern     (* Subpattern *) 

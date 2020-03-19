@@ -183,6 +183,23 @@ and ipattern loc tctable env = function
     free env x;
     (* Do our thing *)
     let x, env = bind env x in PatVar x, env
+  (* Data *)
+  | SynPatData (id, tyvars, ps) -> 
+    (* Bind all tyvars *)
+    let env, tyvars = Import.bind_sequentially env tyvars in 
+    (* Bind all subpatterns *)
+    let env, rev_ps = List.fold_left 
+      (fun (env, ps) p -> 
+        let p, env = ipattern loc tctable env p in 
+        env, p::ps) 
+      (env, []) ps
+    in 
+    let ps = List.rev rev_ps in
+    (* Get tycon *)
+    let tycon = Import.resolve env id in
+    (* Return *)
+    PatData (tycon, tyvars, ps), env
+
   (* x : A *)
   | SynPatTyAnnot (p, ty) -> 
       let ty = itype tctable env ty in 
@@ -240,6 +257,7 @@ and get_id_pattern = function
   | SynPatTyAnnot (p, _) | SynPatBang p | SynPatUnion (p, _)
   | SynPatAltPair (_, p, _) | SynPatLoc(_, p) -> get_id_pattern p
   | SynPatSimPair (p, p') | SynPatOr (p, p') -> (get_id_pattern p) @ (get_id_pattern p')
+  | SynPatData (_, _, ps) -> List.flatten (List.map get_id_pattern ps)
 
 (* ------------------------------------------------------------------------- *)
 

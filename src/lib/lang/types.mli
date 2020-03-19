@@ -63,6 +63,10 @@ val multiply: ftype -> int -> ftype
    root of the type [ty] *)
 val count_foralls: ftype -> int
 
+(** [arity t] returns the arity of the function type [t]. 
+    If t is not a function type, it returns 0 *)
+val arity: ftype -> int
+
 (* ------------------------------------------------------------------------------- *)
 (* Ppx deriving *)
 

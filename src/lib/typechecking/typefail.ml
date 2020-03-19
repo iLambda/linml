@@ -135,6 +135,13 @@ let tycon_arity_mismatch xenv x expected got =
     (print_atom xenv x) expected got
   )
 
+
+let dtycon_arity_mismatch xenv x expected got =
+  Error.errora [x] (sprintf
+    "The data constructor %s expects %d term arguments,\nbut is applied to %d term arguments.\n"
+    (print_atom xenv x) expected got
+  )
+
 let invalid_type_scheme ?(kind="data constructor signature") xenv dtycon ty =
   Error.errora [dtycon] (sprintf
     "Type %s is not a valid type scheme (in data constructor %s).\nIt cannot be used as a %s.\n"
@@ -171,6 +178,13 @@ let expected_form xenv loc form ty =
     "Type mismatch: expected %s.\nInferred: %s\n"
     form
     (print_type xenv ty)
+  )
+
+let tycon_mismatch xenv loc exp_tycon got_tycon = 
+  Error.error [loc] (sprintf
+    "Type mismatch: expected %s, got %s instead.\n"
+    (print_atom xenv exp_tycon)
+    (print_atom xenv got_tycon)
   )
 
 let form_mismatch loc form1 form2 = 

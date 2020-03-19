@@ -151,3 +151,10 @@ let rec equal ty1 ty2 =
     (* Else *)
     | _ -> false
     
+(** [arity t] returns the arity of the function type [t]. 
+    If t is not a function type, it returns 0 *)
+let rec arity acc = function 
+  | TyLollipop (_, ty) | TyArrow (_, ty) -> arity (1+acc) ty
+  | _ -> acc
+
+let arity ty = arity 0 ty

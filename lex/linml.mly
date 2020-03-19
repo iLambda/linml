@@ -272,6 +272,8 @@ pattern1:
   | PUNCTUATION_UNDERSCORE { SynPatWildcard }
   (* x *)
   | x=term_variable { SynPatVar x }
+  (* Data *)
+  | dtycon=data_constructor tyvars=type_formal_argument* { SynPatData (dtycon, List.flatten tyvars, []) }
   (* !p *)
   | PUNCTUATION_BANG p=pattern1 { SynPatBang p }
   (* (p : t) *)
@@ -287,6 +289,13 @@ pattern1:
 pattern0:
   (* p *)
   | p=pattern1 { p }
+  (* Data [a...a] (p, ..., p) *)
+  | dtycon=data_constructor 
+    tyvars=type_formal_argument* 
+    PUNCTUATION_LPAREN 
+    ps=separated_nonempty_list(PUNCTUATION_COMMA, locp(pattern1)) 
+    PUNCTUATION_RPAREN 
+    { SynPatData (dtycon, List.flatten tyvars, ps) }
   (* p <: A + _ + A *)
   | p=locp(pattern1) OPERATOR_EXTRACT inj=injection
     { SynPatUnion (p, inj) }

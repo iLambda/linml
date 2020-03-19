@@ -93,6 +93,8 @@ and pattern =
   | SynPatWildcard
   (* x *)
   | SynPatVar of identifier
+  (* Data *)
+  | SynPatData of identifier * identifier list * pattern list
   (* x : A *)
   | SynPatTyAnnot of pattern * ftype
   (* x! *)
